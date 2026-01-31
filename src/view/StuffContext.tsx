@@ -6,11 +6,17 @@ import WavenerdDeck from '@0b5vr/wavenerd-deck';
 import { FullscreenManager } from '../FullscreenManager';
 import { FrameEmitter } from '../FrameEmitter';
 import { StorageManager } from '../StorageManager';
+import { StrudelDeck } from '../strudel/StrudelDeck';
+import { DeckSwitch } from '../audio/DeckSwitch';
 
 export interface Stuff {
   deckA: WavenerdDeck;
   deckB: WavenerdDeck;
   hostDeck: WavenerdDeck;
+  strudelDeckA: StrudelDeck;
+  strudelDeckB: StrudelDeck;
+  deckSwitchA: DeckSwitch;
+  deckSwitchB: DeckSwitch;
   mixer: Mixer;
   recorder: Recorder;
   storageManager: StorageManager;

@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, us
 import { Analyser } from '../../audio/Analyser';
 import { DeckEditor } from './DeckEditor';
 import { DeckStatusBar } from './DeckStatusBar';
-import { atom, PrimitiveAtom } from 'jotai';
+import { atom, PrimitiveAtom, useAtom } from 'jotai';
 import { ThemeVars } from '../themes/ThemeVars';
 import WavenerdDeck from '@0b5vr/wavenerd-deck';
 import styled, { keyframes } from 'styled-components';
@@ -13,6 +13,10 @@ import { DeckVisualizer } from './DeckVisualizer/DeckVisualizer';
 import { DeckLibrary } from './DeckLibrary';
 import { DeckBraceJumpMap } from './DeckBraceJumpMap';
 import { StuffContext } from '../StuffContext';
+import type { DeckMode } from '../../audio/DeckSwitch';
+import type { DeckSwitch } from '../../audio/DeckSwitch';
+import type { StrudelDeck } from '../../strudel/StrudelDeck';
+import { initStrudel, waitForDeckInit } from '../../strudel/initStrudel';
 
 // == styles =======================================================================================
 const fadeOut = keyframes`
@@ -81,6 +85,12 @@ export const Deck = forwardRef(({
   deck,
   gainParamName,
   storagePath,
+  // Strudel-related props
+  modeAtom,
+  strudelCodeAtom,
+  strudelHasEditAtom,
+  strudelDeck,
+  deckSwitch,
 }: {
   deck: WavenerdDeck;
   gainParamName: string;
@@ -92,6 +102,12 @@ export const Deck = forwardRef(({
   compileTimeAtom: PrimitiveAtom<number>;
   analyser: Analyser;
   className?: string;
+  // Strudel-related props
+  modeAtom: PrimitiveAtom<DeckMode>;
+  strudelCodeAtom: PrimitiveAtom<string>;
+  strudelHasEditAtom: PrimitiveAtom<boolean>;
+  strudelDeck: StrudelDeck;
+  deckSwitch: DeckSwitch;
 }, ref: React.Ref<{ focusEditor: (highlight: boolean) => void }>) => {
   const { storageManager } = useContext(StuffContext)!;
 
@@ -104,6 +120,12 @@ export const Deck = forwardRef(({
   } | null>(null), []);
 
   const [focusHighlightKey, setFocusHighlightKey] = useState(0);
+  const [mode, setMode] = useAtom(modeAtom);
+
+  // Get the correct atoms based on mode
+  const activeCodeAtom = mode === 'glsl' ? codeAtom : strudelCodeAtom;
+  const activeHasEditAtom = mode === 'glsl' ? hasEditAtom : strudelHasEditAtom;
+  const activeStoragePath = mode === 'glsl' ? storagePath : storagePath.replace('.glsl', '.strudel.js');
 
   // -- refs ---------------------------------------------------------------------------------------
   const refEditor = useRef<{ focusEditor: () => void; jumpToLine: (line: number) => void }>(null);
@@ -136,42 +158,89 @@ export const Deck = forwardRef(({
   }, [refEditor]);
 
   const handleLoad = useAtomCallback(useCallback(async (get, set, code: string) => {
-    set(codeAtom, code);
-    set(hasEditAtom, true);
+    set(activeCodeAtom, code);
+    set(activeHasEditAtom, true);
     jumpToLine(1);
-  }, [codeAtom, hasEditAtom, jumpToLine]));
+  }, [activeCodeAtom, activeHasEditAtom, jumpToLine]));
+
+  // Derive deck ID from storagePath (e.g., "decks/a.glsl" -> "A")
+  const deckId = storagePath.includes('/a.') ? 'A' : 'B';
 
   const handleCompile = useAtomCallback(useCallback(async (get, set) => {
-    const code = get(codeAtom);
+    console.log('[Deck] handleCompile called, mode:', mode);
+    const code = get(activeCodeAtom);
+    console.log('[Deck] code length:', code.length);
 
     const compileBegin = performance.now();
-    await deck.compile(code);
+
+    if (mode === 'glsl') {
+      console.log('[Deck] Compiling GLSL...');
+      await deck.compile(code);
+    } else {
+      console.log('[Deck] Compiling Strudel...');
+      // Wait for Strudel deck to be fully initialized (REPL created)
+      console.log('[Deck] Waiting for Strudel deck initialization...');
+      await waitForDeckInit(deckId);
+      console.log('[Deck] Strudel deck ready, compiling...');
+      await strudelDeck.compile(code);
+      console.log('[Deck] Strudel compile done');
+    }
+
     const compileTime = performance.now() - compileBegin;
 
-    storageManager.save(storagePath, code);
-    set(hasEditAtom, false);
+    storageManager.save(activeStoragePath, code);
+    set(activeHasEditAtom, false);
     set(compileTimeAtom, compileTime);
-  }, [codeAtom, hasEditAtom, deck, storagePath, compileTimeAtom, storageManager]));
+  }, [activeCodeAtom, activeHasEditAtom, deck, activeStoragePath, compileTimeAtom, storageManager, mode, strudelDeck, deckId]));
 
   const handleApply = useCallback(
     async () => {
-      if (deck.cueStatus === 'none') {
-        await handleCompile();
+      console.log('[Deck] handleApply called, mode:', mode);
+      if (mode === 'glsl') {
+        console.log('[Deck] GLSL apply, cueStatus:', deck.cueStatus);
+        if (deck.cueStatus === 'none') {
+          await handleCompile();
+        }
+        deck.applyCue();
+      } else {
+        console.log('[Deck] Strudel apply, cueStatus:', strudelDeck.cueStatus);
+        if (strudelDeck.cueStatus === 'none') {
+          await handleCompile();
+        }
+        await strudelDeck.applyCue();
       }
-      deck.applyCue();
     },
-    [handleCompile],
+    [handleCompile, mode, strudelDeck, deck],
   );
 
   const handleApplyImmediately = useCallback(
     async () => {
-      if (deck.cueStatus === 'none') {
-        await handleCompile();
+      if (mode === 'glsl') {
+        if (deck.cueStatus === 'none') {
+          await handleCompile();
+        }
+        deck.applyCueImmediately();
+      } else {
+        if (strudelDeck.cueStatus === 'none') {
+          await handleCompile();
+        }
+        strudelDeck.applyCueImmediately();
       }
-      deck.applyCueImmediately();
     },
-    [handleCompile],
+    [handleCompile, mode, strudelDeck],
   );
+
+  const handleToggleMode = useCallback(() => {
+    const newMode = mode === 'glsl' ? 'strudel' : 'glsl';
+    console.log('[Deck] Toggle mode:', mode, '->', newMode);
+    setMode(newMode);
+    deckSwitch.setMode(newMode);
+
+    // Stop Strudel when switching to GLSL
+    if (newMode === 'glsl') {
+      strudelDeck.stop();
+    }
+  }, [mode, setMode, deckSwitch, strudelDeck]);
 
   const refBraceJumpMap = useRef<{ update: (index: number) => void }>(null);
   const handleBraceJump = useCallback((index: number) => {
@@ -181,13 +250,17 @@ export const Deck = forwardRef(({
   // -- init ---------------------------------------------------------------------------------------
   useEffect(() => {
     const initCode = async () => {
-      const file = await storageManager.getFile(storagePath);
-      if (file != null) {
-        const code = await file.text();
+      // Load GLSL code
+      const glslFile = await storageManager.getFile(storagePath);
+      if (glslFile != null && mode === 'glsl') {
+        const code = await glslFile.text();
         handleLoad(code);
       }
 
-      handleApplyImmediately();
+      // Only auto-apply in GLSL mode
+      if (mode === 'glsl') {
+        handleApplyImmediately();
+      }
     };
     initCode();
 
@@ -196,7 +269,7 @@ export const Deck = forwardRef(({
     return () => {
       storageManager.off('init', handleInit);
     };
-  }, [storageManager, storagePath, handleLoad, handleApplyImmediately]);
+  }, [storageManager, storagePath, handleLoad, handleApplyImmediately, mode]);
 
   // -- imperative handle --------------------------------------------------------------------------
   useImperativeHandle(ref, () => ({ focusEditor }), [focusEditor]);
@@ -209,28 +282,31 @@ export const Deck = forwardRef(({
       <StyledVisualizer analyser={analyser} />
       <StyledEditor
         ref={refEditor}
-        codeAtom={codeAtom}
+        codeAtom={activeCodeAtom}
         logsAtom={logsAtom}
         errorAtom={errorAtom}
-        hasEditAtom={hasEditAtom}
+        hasEditAtom={activeHasEditAtom}
         onCompile={handleCompile}
         onApply={handleApply}
         onApplyImmediately={handleApplyImmediately}
         onBraceJump={handleBraceJump}
         memoryUpdateAtom={memoryUpdateAtom}
         libraryOpeningAtom={libraryOpeningAtom}
+        mode={mode}
       />
       <DeckLog logsAtom={logsAtom} />
       <StyledStatusBar
         errorAtom={errorAtom}
         cueStatusAtom={cueStatusAtom}
-        hasEditAtom={hasEditAtom}
+        hasEditAtom={activeHasEditAtom}
         compileTimeAtom={compileTimeAtom}
         onCompile={handleCompile}
         onApply={handleApply}
         onApplyImmediately={handleApplyImmediately}
         onJumpToLine={jumpToLine}
+        onToggleMode={handleToggleMode}
         gainParamName={gainParamName}
+        mode={mode}
       />
 
       <DeckLibrary

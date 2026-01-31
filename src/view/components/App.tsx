@@ -1,6 +1,12 @@
 import 'simplebar-react/dist/simplebar.min.css';
 
-import { deckACodeAtom, deckACompileTimeAtom, deckACueStatusAtom, deckAErrorAtom, deckAHasEditAtom, deckBCodeAtom, deckBCompileTimeAtom, deckBCueStatusAtom, deckBErrorAtom, deckBHasEditAtom } from '../stores/atoms/deck';
+import {
+  deckACodeAtom, deckACompileTimeAtom, deckACueStatusAtom, deckAErrorAtom, deckAHasEditAtom,
+  deckBCodeAtom, deckBCompileTimeAtom, deckBCueStatusAtom, deckBErrorAtom, deckBHasEditAtom,
+  deckAModeAtom, deckBModeAtom,
+  deckAStrudelCodeAtom, deckBStrudelCodeAtom,
+  deckAStrudelHasEditAtom, deckBStrudelHasEditAtom,
+} from '../stores/atoms/deck';
 import styled, { createGlobalStyle, css } from 'styled-components';
 import { AssetList } from './AssetList';
 import { ContextMenu } from './ContextMenu';
@@ -153,7 +159,10 @@ function useFocusDeckShortcuts({
 
 // == component ====================================================================================
 export function OutOfContextApp() {
-  const { deckA, deckB, mixer, recorder, storageManager } = useContext(StuffContext)!;
+  const {
+    deckA, deckB, mixer, recorder, storageManager,
+    strudelDeckA, strudelDeckB, deckSwitchA, deckSwitchB,
+  } = useContext(StuffContext)!;
 
   const themeString = useSettings('theme');
   const deckBShow = useSettings('deckBShow');
@@ -203,6 +212,11 @@ export function OutOfContextApp() {
               deck={deckA}
               storagePath="decks/a.glsl"
               gainParamName="/mixer/channel_a/gain"
+              modeAtom={deckAModeAtom}
+              strudelCodeAtom={deckAStrudelCodeAtom}
+              strudelHasEditAtom={deckAStrudelHasEditAtom}
+              strudelDeck={strudelDeckA}
+              deckSwitch={deckSwitchA}
             />
             <StyledDeckKnobs paramPrefix="/deck_a" />
           </DeckColumn>
@@ -232,6 +246,11 @@ export function OutOfContextApp() {
                 deck={deckB}
                 storagePath="decks/b.glsl"
                 gainParamName="/mixer/channel_b/gain"
+                modeAtom={deckBModeAtom}
+                strudelCodeAtom={deckBStrudelCodeAtom}
+                strudelHasEditAtom={deckBStrudelHasEditAtom}
+                strudelDeck={strudelDeckB}
+                deckSwitch={deckSwitchB}
               />
               <StyledDeckKnobs paramPrefix="/deck_b" />
             </DeckColumn>

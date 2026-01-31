@@ -8,9 +8,12 @@ import IconCircle from '~icons/mdi/circle-medium';
 import IconError from '~icons/mdi/close-octagon';
 import IconMute from '~icons/mdi/volume-mute';
 import IconPlay from '~icons/mdi/play';
+import IconCodeBraces from '~icons/mdi/code-braces';
+import IconMusicNote from '~icons/mdi/music-note';
 import { ThemeVars } from '../themes/ThemeVars';
 import { useMidiValue } from '../stores/hooks/useMidiValue';
 import { useSettings } from '../stores/hooks/useSettings';
+import type { DeckMode } from '../../audio/DeckSwitch';
 
 // == styles =======================================================================================
 const StyleIcon = css`
@@ -86,6 +89,14 @@ const StyledIconBuild = styled(IconBuild)`
 `;
 
 const StyledIconApply = styled(IconApply)`
+  ${StyleIconButton}
+`;
+
+const StyledIconCodeBraces = styled(IconCodeBraces)`
+  ${StyleIconButton}
+`;
+
+const StyledIconMusicNote = styled(IconMusicNote)`
   ${StyleIconButton}
 `;
 
@@ -172,22 +183,26 @@ export function DeckStatusBar({
   onApply,
   onApplyImmediately,
   onJumpToLine,
+  onToggleMode,
   cueStatusAtom,
   hasEditAtom,
   errorAtom,
   compileTimeAtom,
   gainParamName,
+  mode = 'glsl',
   className,
 }: {
   onCompile: () => void;
   onApply: () => void;
   onApplyImmediately: () => void;
   onJumpToLine: (line: number) => void;
+  onToggleMode?: () => void;
   cueStatusAtom: PrimitiveAtom<'none' | 'compiling' | 'ready' | 'applying'>;
   hasEditAtom: PrimitiveAtom<boolean>;
   errorAtom: PrimitiveAtom<string | null>;
   compileTimeAtom: PrimitiveAtom<number>;
   gainParamName: string;
+  mode?: DeckMode;
   className?: string;
 }) {
   const cueStatus = useAtomValue(cueStatusAtom);
@@ -299,19 +314,40 @@ export function DeckStatusBar({
     );
   }
 
+  const modeStalker = mode === 'glsl'
+    ? 'Current mode: GLSL (shader synthesis)&#10;Click to switch to Strudel'
+    : 'Current mode: Strudel (pattern-based)&#10;Click to switch to GLSL';
+
   return (
     <Root
       className={className}
     >
+      {onToggleMode && (
+        mode === 'glsl'
+          ? (
+              <StyledIconCodeBraces
+                onClick={onToggleMode}
+                data-stalker={modeStalker}
+              />
+            )
+          : (
+              <StyledIconMusicNote
+                onClick={onToggleMode}
+                data-stalker={modeStalker}
+              />
+            )
+      )}
       { content }
       {compileTimeEnabled && <CompileTime compileTimeAtom={compileTimeAtom} />}
       <StyledIconBuild
         onClick={onCompile}
-        data-stalker="Compile the shader code (Ctrl+S)"
+        data-stalker={mode === 'glsl' ? 'Compile the shader code (Ctrl+S)' : 'Evaluate the pattern (Ctrl+S)'}
       />
       <StyledIconApply
         onClick={handleClickApply}
-        data-stalker="Apply the compiled shader code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately"
+        data-stalker={mode === 'glsl'
+          ? 'Apply the compiled shader code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately'
+          : 'Apply the pattern (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately'}
       />
     </Root>
   );

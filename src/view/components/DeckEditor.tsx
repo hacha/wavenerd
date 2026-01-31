@@ -1,7 +1,9 @@
 import { EditorView, KeyBinding, keymap } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { cpp } from '@codemirror/lang-cpp';
+import { javascript } from '@codemirror/lang-javascript';
 import ReactCodeMirror, { Prec, ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import type { DeckMode } from '../../audio/DeckSwitch';
 import { forwardRef, useCallback, useContext, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import SimpleBar from 'simplebar-react';
@@ -127,6 +129,7 @@ export const DeckEditor = forwardRef(({
   memoryUpdateAtom,
   libraryOpeningAtom,
   className,
+  mode = 'glsl',
 }: {
   codeAtom: PrimitiveAtom<string>;
   logsAtom: PrimitiveAtom<[ id: number, text: string ][]>;
@@ -139,6 +142,7 @@ export const DeckEditor = forwardRef(({
   memoryUpdateAtom: PrimitiveAtom<{ key: string; status: 'loaded' | 'loadfailed' | 'saved' } | null>;
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
+  mode?: DeckMode;
 }, ref: React.Ref<{ focusEditor: () => void }>) => {
   const { storageManager } = useContext(StuffContext)!;
 
@@ -168,6 +172,11 @@ export const DeckEditor = forwardRef(({
     return [theme];
   }, [font, fontVariantLigatures]);
 
+  // Language extension based on mode
+  const languageExtension = useMemo(() => {
+    return mode === 'glsl' ? cpp() : javascript();
+  }, [mode]);
+
   const addLog = useAtomCallback(useCallback((get, set, text: string) => {
     const logs = get(logsAtom);
     const id = (logs[0]?.[0] ?? 0) + 1;
@@ -176,7 +185,8 @@ export const DeckEditor = forwardRef(({
   }, [logsAtom]));
 
   const handleLoadMemory = useCallback(async (key: string) => {
-    const codeFile = await storageManager.getFile(`memories/${key}.glsl`);
+    const ext = mode === 'glsl' ? 'glsl' : 'js';
+    const codeFile = await storageManager.getFile(`memories/${key}.${ext}`);
     if (codeFile == null) {
       setMemoryUpdate({ key, status: 'loadfailed' });
       return;
@@ -199,18 +209,21 @@ export const DeckEditor = forwardRef(({
     );
 
     setMemoryUpdate({ key, status: 'loaded' });
-  }, [setMemoryUpdate]);
+  }, [setMemoryUpdate, mode]);
 
   const handleSaveMemory = useCallback(async (key: string) => {
+    const ext = mode === 'glsl' ? 'glsl' : 'js';
     const head = refCodeMirror.current?.view?.state.selection.main.head ?? 0;
-    await storageManager.save(`memories/${key}.glsl`, code);
+    await storageManager.save(`memories/${key}.${ext}`, code);
     await storageManager.save(`memories/${key}_head.txt`, head.toString());
 
     setMemoryUpdate({ key, status: 'saved' });
-  }, [code, setMemoryUpdate]);
+  }, [code, setMemoryUpdate, mode]);
 
   // -- keymap -------------------------------------------------------------------------------------
-  const customKeymap: KeyBinding[] = useMemo(() => [
+  const customKeymap: KeyBinding[] = useMemo(() => {
+    console.log('[DeckEditor] Creating keymap, mode:', mode);
+    return [
     {
       key: 'Mod-p',
       preventDefault: true,
@@ -223,6 +236,7 @@ export const DeckEditor = forwardRef(({
       key: 'Mod-s',
       preventDefault: true,
       run: () => {
+        console.log('[DeckEditor] Mod-s pressed, calling onCompile');
         onCompile();
         return false;
       },
@@ -231,6 +245,7 @@ export const DeckEditor = forwardRef(({
       key: 'Mod-r',
       preventDefault: true,
       run: () => {
+        console.log('[DeckEditor] Mod-r pressed, calling onApply');
         onApply();
         return false;
       },
@@ -255,7 +270,8 @@ export const DeckEditor = forwardRef(({
     ]),
     ...braceJumpKeymap({ onBraceJump }),
     ...defaultKeymap,
-  ], [onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory]);
+  ];
+  }, [onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory, mode]);
 
   // -- error layer --------------------------------------------------------------------------------
   const error = useAtomValue(errorAtom);
@@ -273,6 +289,17 @@ export const DeckEditor = forwardRef(({
   }, [error]);
   const errorlayer = useMemo(() => createErrorlayer(errorLines), [errorLines]);
 
+  // Memoize the keymap extension so CodeMirror detects changes
+  const keymapExtension = useMemo(
+    () => Prec.highest(keymap.of(customKeymap)),
+    [customKeymap]
+  );
+
+  const extensions = useMemo(
+    () => [languageExtension, keymapExtension, errorlayer, backlayer],
+    [languageExtension, keymapExtension, errorlayer]
+  );
+
   // -- event handlers -----------------------------------------------------------------------------
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -289,7 +316,7 @@ export const DeckEditor = forwardRef(({
       setCode(value);
       setHasEdit(true);
     },
-    [],
+    [setCode, setHasEdit],
   );
 
   const handleFile = useCallback(
@@ -377,12 +404,7 @@ export const DeckEditor = forwardRef(({
         <StyledReactCodeMirror
           ref={refCodeMirror}
           value={code}
-          extensions={[
-            cpp(),
-            Prec.highest(keymap.of(customKeymap)),
-            errorlayer,
-            backlayer,
-          ]}
+          extensions={extensions}
           theme={[
             theme.extensions,
             fontExtension,

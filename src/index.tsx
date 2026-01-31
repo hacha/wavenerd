@@ -20,6 +20,10 @@ import { StorageManager } from './StorageManager';
 import { loadFileAsImage } from './utils/loadFileAsImage';
 import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
+import { DeckSwitch } from './audio/DeckSwitch';
+import { StrudelDeck } from './strudel/StrudelDeck';
+import { initStrudel, getControllerId, signalDeckReady } from './strudel/initStrudel';
+import { createSuperdoughController } from '@wavenerd/superdough';
 
 // == setup ========================================================================================
 const canvas = document.createElement('canvas');
@@ -46,8 +50,46 @@ const deckA = new WavenerdDeck(deckOptions);
 const deckB = new WavenerdDeck({ ...deckOptions, hostDeck: deckA });
 const mixer = new Mixer(audio);
 
-deckA.node.connect(mixer.inputA);
-deckB.node.connect(mixer.inputB);
+// Create deck switches for GLSL/Strudel mode switching
+const deckSwitchA = new DeckSwitch(audio);
+const deckSwitchB = new DeckSwitch(audio);
+
+// Connect GLSL decks through switches to mixer
+deckA.node.connect(deckSwitchA.glslInput);
+deckB.node.connect(deckSwitchB.glslInput);
+deckSwitchA.output.connect(mixer.inputA);
+deckSwitchB.output.connect(mixer.inputB);
+
+// Create Strudel decks
+const strudelDeckA = new StrudelDeck();
+const strudelDeckB = new StrudelDeck();
+
+// Initialize Strudel with Wavenerd's AudioContext and set up custom routing
+// Strudel output now goes through the mixer chain (EQ, filter, crossfader, reverb, recording)
+console.log('[Main] Starting Strudel initialization...');
+initStrudel(audio).then(() => {
+  console.log('[Main] Strudel initialized with shared AudioContext');
+
+  // Create superdough controllers for each deck with custom destinations
+  const controllerIdA = getControllerId('A');
+  const controllerIdB = getControllerId('B');
+
+  createSuperdoughController(controllerIdA, audio, deckSwitchA.strudelInput);
+  createSuperdoughController(controllerIdB, audio, deckSwitchB.strudelInput);
+
+  console.log('[Main] Superdough controllers created for Deck A and B');
+
+  // Set controller IDs on StrudelDecks (this creates REPLs with custom output)
+  strudelDeckA.setControllerId(controllerIdA);
+  signalDeckReady('A');
+
+  strudelDeckB.setControllerId(controllerIdB);
+  signalDeckReady('B');
+
+  console.log('[Main] Strudel decks configured with custom routing');
+}).catch((e) => {
+  console.error('[Main] Failed to initialize Strudel:', e);
+});
 
 const reverb = new Reverb(audio);
 mixer.output.connect(reverb.input);
@@ -259,6 +301,10 @@ root.render(
       deckA,
       deckB,
       hostDeck: deckA,
+      strudelDeckA,
+      strudelDeckB,
+      deckSwitchA,
+      deckSwitchB,
       mixer,
       recorder,
       router,
