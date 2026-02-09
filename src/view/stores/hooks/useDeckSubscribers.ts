@@ -1,9 +1,10 @@
 import { deckACueStatusAtom, deckAErrorAtom, deckBCueStatusAtom, deckBErrorAtom, deckBPMAtom, deckBeatsAtom, deckIsPlayingAtom, deckTimeAtom } from '../atoms/deck';
+import type { IDeck } from '../../../IDeck';
 import WavenerdDeck from '@0b5vr/wavenerd-deck';
 import { useEffect } from 'react';
 import { useSetAtom } from 'jotai';
 
-function useDeckASubscribers(deckA: WavenerdDeck) {
+function useDeckASubscribers(deckA: WavenerdDeck, strudelDeckA: IDeck) {
   const setDeckACueStatus = useSetAtom(deckACueStatusAtom);
   const setDeckAError = useSetAtom(deckAErrorAtom);
 
@@ -16,14 +17,24 @@ function useDeckASubscribers(deckA: WavenerdDeck) {
       setDeckAError(error ?? null);
     });
 
+    const handleStrudelCueStatus = strudelDeckA.on('changeCueStatus', ({ cueStatus }) => {
+      setDeckACueStatus(cueStatus);
+    });
+
+    const handleStrudelError = strudelDeckA.on('error', ({ error }) => {
+      setDeckAError(error ?? null);
+    });
+
     return () => {
       deckA.off('changeCueStatus', handleChangeCueStatus);
       deckA.off('error', handleError);
+      strudelDeckA.off('changeCueStatus', handleStrudelCueStatus);
+      strudelDeckA.off('error', handleStrudelError);
     };
   });
 }
 
-function useDeckBSubscribers(deckB: WavenerdDeck) {
+function useDeckBSubscribers(deckB: WavenerdDeck, strudelDeckB: IDeck) {
   const setDeckBCueStatus = useSetAtom(deckBCueStatusAtom);
   const setDeckBError = useSetAtom(deckBErrorAtom);
 
@@ -36,9 +47,19 @@ function useDeckBSubscribers(deckB: WavenerdDeck) {
       setDeckBError(error ?? null);
     });
 
+    const handleStrudelCueStatus = strudelDeckB.on('changeCueStatus', ({ cueStatus }) => {
+      setDeckBCueStatus(cueStatus);
+    });
+
+    const handleStrudelError = strudelDeckB.on('error', ({ error }) => {
+      setDeckBError(error ?? null);
+    });
+
     return () => {
       deckB.off('changeCueStatus', handleChangeCueStatus);
       deckB.off('error', handleError);
+      strudelDeckB.off('changeCueStatus', handleStrudelCueStatus);
+      strudelDeckB.off('error', handleStrudelError);
     };
   });
 }
@@ -84,8 +105,10 @@ export function useDeckSubscribers(
   hostDeck: WavenerdDeck,
   deckA: WavenerdDeck,
   deckB: WavenerdDeck,
+  strudelDeckA: IDeck,
+  strudelDeckB: IDeck,
 ) {
-  useDeckASubscribers(deckA);
-  useDeckBSubscribers(deckB);
+  useDeckASubscribers(deckA, strudelDeckA);
+  useDeckBSubscribers(deckB, strudelDeckB);
   useDeckTransportSubscribers(hostDeck);
 }

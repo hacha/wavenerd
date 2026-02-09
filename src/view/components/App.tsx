@@ -176,7 +176,7 @@ export function OutOfContextApp() {
   useAnalyserSubscribers(mixer);
   useMidiSubscribers(MIDIMAN);
   useSettingsSubscribers(SETTINGSMAN);
-  useDeckSubscribers(deckA, deckA, deckB);
+  useDeckSubscribers(deckA, deckA, deckB, strudelDeckA, strudelDeckB);
   useRecorderSubscribers(recorder);
   useStorageSubscribers(storageManager);
   useFullscreenSubscriber();

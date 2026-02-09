@@ -17,7 +17,7 @@ import { StuffContext } from '../StuffContext';
 import type { DeckMode } from '../../audio/DeckSwitch';
 import type { DeckSwitch } from '../../audio/DeckSwitch';
 import type { StrudelDeck as StrudelDeckType } from '../../strudel/StrudelDeck';
-import { waitForDeckInit } from '../../strudel/initStrudel';
+import type { IDeck } from '../../IDeck';
 import { Drawer } from '@strudel/draw/draw.mjs';
 
 // == styles =======================================================================================
@@ -128,6 +128,7 @@ export const Deck = forwardRef(({
   const activeCodeAtom = mode === 'glsl' ? codeAtom : strudelCodeAtom;
   const activeHasEditAtom = mode === 'glsl' ? hasEditAtom : strudelHasEditAtom;
   const activeStoragePath = mode === 'glsl' ? storagePath : storagePath.replace('.glsl', '.strudel.js');
+  const activeDeck: IDeck = mode === 'glsl' ? deck : strudelDeck;
 
   // -- refs ---------------------------------------------------------------------------------------
   const refEditor = useRef<DeckEditorHandle>(null);
@@ -165,71 +166,39 @@ export const Deck = forwardRef(({
     jumpToLine(1);
   }, [activeCodeAtom, activeHasEditAtom, jumpToLine]));
 
-  // Derive deck ID from storagePath (e.g., "decks/a.glsl" -> "A")
-  const deckId = storagePath.includes('/a.') ? 'A' : 'B';
-
   const handleCompile = useAtomCallback(useCallback(async (get, set) => {
     console.log('[Deck] handleCompile called, mode:', mode);
     const code = get(activeCodeAtom);
     console.log('[Deck] code length:', code.length);
 
     const compileBegin = performance.now();
-
-    if (mode === 'glsl') {
-      console.log('[Deck] Compiling GLSL...');
-      await deck.compile(code);
-    } else {
-      console.log('[Deck] Compiling Strudel...');
-      // Wait for Strudel deck to be fully initialized (REPL created)
-      console.log('[Deck] Waiting for Strudel deck initialization...');
-      await waitForDeckInit(deckId);
-      console.log('[Deck] Strudel deck ready, compiling...');
-      await strudelDeck.compile(code);
-      console.log('[Deck] Strudel compile done');
-    }
-
+    await activeDeck.compile(code);
     const compileTime = performance.now() - compileBegin;
 
     storageManager.save(activeStoragePath, code);
     set(activeHasEditAtom, false);
     set(compileTimeAtom, compileTime);
-  }, [activeCodeAtom, activeHasEditAtom, deck, activeStoragePath, compileTimeAtom, storageManager, mode, strudelDeck, deckId]));
+  }, [activeCodeAtom, activeHasEditAtom, activeDeck, activeStoragePath, compileTimeAtom, storageManager, mode]));
 
   const handleApply = useCallback(
     async () => {
       console.log('[Deck] handleApply called, mode:', mode);
-      if (mode === 'glsl') {
-        console.log('[Deck] GLSL apply, cueStatus:', deck.cueStatus);
-        if (deck.cueStatus === 'none') {
-          await handleCompile();
-        }
-        deck.applyCue();
-      } else {
-        console.log('[Deck] Strudel apply, cueStatus:', strudelDeck.cueStatus);
-        if (strudelDeck.cueStatus === 'none') {
-          await handleCompile();
-        }
-        await strudelDeck.applyCue();
+      if (activeDeck.cueStatus === 'none') {
+        await handleCompile();
       }
+      await activeDeck.applyCue();
     },
-    [handleCompile, mode, strudelDeck, deck],
+    [handleCompile, activeDeck, mode],
   );
 
   const handleApplyImmediately = useCallback(
     async () => {
-      if (mode === 'glsl') {
-        if (deck.cueStatus === 'none') {
-          await handleCompile();
-        }
-        deck.applyCueImmediately();
-      } else {
-        if (strudelDeck.cueStatus === 'none') {
-          await handleCompile();
-        }
-        strudelDeck.applyCueImmediately();
+      if (activeDeck.cueStatus === 'none') {
+        await handleCompile();
       }
+      await activeDeck.applyCueImmediately();
     },
-    [handleCompile, mode, strudelDeck],
+    [handleCompile, activeDeck],
   );
 
   const handleToggleMode = useCallback(() => {
