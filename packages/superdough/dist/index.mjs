@@ -421,6 +421,9 @@ const setDefaultAudioContext = (ac) => {
   return audioContext;
 };
 
+// Alias expected by @strudel/webaudio >=1.2.6
+const setAudioContext = setDefaultAudioContext;
+
 function getAudioContextCurrentTime() {
   return getAudioContext().currentTime;
 }
@@ -1824,6 +1827,12 @@ async function initAudioOnFirstClick(options) {
 // Multiple controller support for routing to different destinations (e.g., Deck A/B)
 const controllers = new Map();
 let defaultController = null;
+
+// Set the default controller (expected by @strudel/webaudio >=1.2.6)
+function setSuperdoughAudioController(controller) {
+  defaultController = controller;
+  controllers.set('default', controller);
+}
 
 // Get the default controller (for backward compatibility)
 function getSuperdoughAudioController() {
@@ -3391,4 +3400,4 @@ async function onTriggerSynth(t, value, onended, tables, cps, frameLen) {
   return handle;
 }
 
-export { DEFAULT_MAX_POLYPHONY, Warpmode, aliasBank, analysers, analysersData, applyFM, applyGainCurve, applyParameterModulators, connectToDestination, createFilter, createSuperdoughController, destroyAudioWorkletNode, distortionAlgorithms, dough, doughTrigger, drywet, dspWorklet, effectSend, errorLogger, fetchSampleMap, gainNode, getADSRValues, getAnalyserById, getAnalyzerData, getAudioContext, getAudioContextCurrentTime, getAudioDevices, getCachedBuffer, getCompressor, getDefaultValue, getDistortion, getDistortionAlgorithm, getFrequencyFromValue, getLfo, getLoadedBuffer, getOscillator, getParamADSR, getPitchEnvelope, getSampleBuffer, getSampleBufferSource, getSampleInfo, getSound, getSuperdoughController, getVibratoOscillator, getWorklet, getZZFX, initAudio, initAudioOnFirstClick, loadBuffer$1 as loadBuffer, logger, noises, onTriggerSample, onTriggerSynth, processSampleMap, registerSampleSource, registerSamplesPrefix, registerSound, registerSynthSounds, registerWaveTable, registerWorklet, registerZZFXSounds, resetDefaultValues, resetDefaults, resetGlobalEffects, resetLoadedSounds, reverseBuffer, samples, setDefault, setDefaultAudioContext, setDefaultValue, setDefaultValues, setGainCurve, setLogger, setMaxPolyphony, setMultiChannelOrbits, setVersionDefaults, soundAlias, soundMap, superdough, superdoughTrigger, tables, waveformN, webAudioTimeout };
+export { DEFAULT_MAX_POLYPHONY, Warpmode, aliasBank, analysers, analysersData, applyFM, applyGainCurve, applyParameterModulators, connectToDestination, createFilter, createSuperdoughController, destroyAudioWorkletNode, distortionAlgorithms, dough, doughTrigger, drywet, dspWorklet, effectSend, errorLogger, fetchSampleMap, gainNode, getADSRValues, getAnalyserById, getAnalyzerData, getAudioContext, getAudioContextCurrentTime, getAudioDevices, getCachedBuffer, getCompressor, getDefaultValue, getDistortion, getDistortionAlgorithm, getFrequencyFromValue, getLfo, getLoadedBuffer, getOscillator, getParamADSR, getPitchEnvelope, getSampleBuffer, getSampleBufferSource, getSampleInfo, getSound, getSuperdoughController, getVibratoOscillator, getWorklet, getZZFX, initAudio, initAudioOnFirstClick, loadBuffer$1 as loadBuffer, logger, noises, onTriggerSample, onTriggerSynth, processSampleMap, registerSampleSource, registerSamplesPrefix, registerSound, registerSynthSounds, registerWaveTable, registerWorklet, registerZZFXSounds, resetDefaultValues, resetDefaults, resetGlobalEffects, resetLoadedSounds, reverseBuffer, samples, setAudioContext, setDefault, setDefaultAudioContext, setDefaultValue, setDefaultValues, setGainCurve, setLogger, setMaxPolyphony, setMultiChannelOrbits, setSuperdoughAudioController, setVersionDefaults, soundAlias, soundMap, superdough, superdoughTrigger, tables, waveformN, webAudioTimeout };

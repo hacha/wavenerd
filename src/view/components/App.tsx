@@ -116,6 +116,9 @@ const Root = styled.div<{ themeString: string }>`
 
   ${({ themeString }) => themeVarsCss(themeString)}
 
+  // Strudel's highlight.mjs uses var(--foreground) for pattern outline color
+  --foreground: ${ThemeVars.accent};
+
   ${({ themeString }) => (themeString.startsWith('chromaCoder')) && css`
     filter: brightness(1.0);
   `}

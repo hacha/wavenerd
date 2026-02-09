@@ -5,6 +5,10 @@ import * as mini from '@strudel/mini';
 import * as tonal from '@strudel/tonal';
 import type { Repl } from '@strudel/core';
 
+// Register widget types (_scope, _pianoroll, _spiral, etc.) on Pattern.prototype
+// This side-effect import calls registerWidget() for each built-in widget type
+import '@strudel/codemirror/widget.mjs';
+
 const { webaudioRepl, initAudio, getAudioContext, registerSynthSounds } = webaudio;
 
 // Debug: Check which superdough is being used

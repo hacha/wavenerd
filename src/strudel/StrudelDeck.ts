@@ -6,11 +6,32 @@ import type { Repl, Hap } from '@strudel/core';
 
 export type StrudelCueStatus = 'none' | 'compiling' | 'ready' | 'applying';
 
+export interface StrudelMiniLocation {
+  0: number; // fromOffset
+  1: number; // toOffset
+}
+
+export interface StrudelWidgetConfig {
+  to: number;
+  index: number;
+  type: string;
+  id: string;
+  from?: number;
+  value?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  [key: string]: unknown;
+}
+
 interface StrudelDeckEvents {
   changeCueStatus: { cueStatus: StrudelCueStatus };
   error: { error: string | null };
   play: void;
   pause: void;
+  afterEval: { miniLocations: StrudelMiniLocation[]; widgets: StrudelWidgetConfig[]; pattern: unknown };
+  schedulerStart: { scheduler: unknown };
+  schedulerStop: void;
 }
 
 // Convert hap to value object
@@ -20,7 +41,7 @@ const hap2value = (hap: Hap) => {
 };
 
 export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
-  private repl: Repl | null = null;
+  public repl: Repl | null = null;
   private pendingCode: string | null = null;
   private _cueStatus: StrudelCueStatus = 'none';
   private _isPlaying = false;
@@ -47,14 +68,32 @@ export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
       return superdough(hap2value(hap), t, hapDuration, cps, hap.whole?.begin.valueOf(), this._controllerId);
     };
 
-    // Create a new REPL with our custom output
-    // Use webaudioRepl instead of basic repl to get mini notation parsing
+    // Create a new REPL with our custom output and transpiler
+    // Passing transpiler to repl enables miniLocations/widgets collection in afterEval
     this.repl = webaudioRepl({
       getTime: () => getAudioContext().currentTime,
       defaultOutput: webaudioOutput,
+      transpiler,
+      afterEval: ({ pattern, meta }: { code: string; pattern: unknown; meta?: { miniLocations?: StrudelMiniLocation[]; widgets?: StrudelWidgetConfig[] } }) => {
+        const miniLocations = meta?.miniLocations || [];
+        const widgets = meta?.widgets || [];
+        console.log('[StrudelDeck] afterEval fired, miniLocations:', miniLocations.length, 'widgets:', widgets.length, 'meta keys:', meta ? Object.keys(meta) : 'none');
+        this.__emit('afterEval', { miniLocations, widgets, pattern });
+      },
+      onToggle: (started: boolean) => {
+        if (started) {
+          this._isPlaying = true;
+          this.__emit('play');
+          this.__emit('schedulerStart', { scheduler: this.repl!.scheduler });
+        } else {
+          this._isPlaying = false;
+          this.__emit('pause');
+          this.__emit('schedulerStop');
+        }
+      },
     });
 
-    console.log(`[StrudelDeck] Controller ID set to ${controllerId}, REPL created with custom output`);
+    console.log(`[StrudelDeck] Controller ID set to ${controllerId}, REPL created with transpiler`);
   }
 
   public setRepl(repl: Repl): void {
@@ -74,7 +113,8 @@ export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
       // Replace bpm variable with actual value
       const codeWithBpm = code.replace(/\bbpm\b/g, this._bpm.toString());
 
-      // Store the code for later playback
+      // Store the raw code for later playback
+      // The repl will handle transpilation internally (since we passed transpiler to it)
       this.pendingCode = codeWithBpm;
       this._cueStatus = 'ready';
       this.__emit('changeCueStatus', { cueStatus: 'ready' });
@@ -104,19 +144,11 @@ export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
         this.repl.stop();
       }
 
-      // Transpile the code to convert mini notation strings to mini() calls
-      // wrapAsync: true allows await in the code
-      // addReturn: true returns the pattern from the async IIFE
-      const { output: transpiledCode } = transpiler(this.pendingCode, {
-        wrapAsync: true,
-        addReturn: true
-      });
-      console.log('[StrudelDeck] Evaluating transpiled code:', transpiledCode);
-      // Evaluate and start the pattern (autostart=true by default)
-      await this.repl.evaluate(transpiledCode);
+      // Pass raw code to repl.evaluate — repl will internally call transpiler
+      // which collects miniLocations/widgets and passes them to afterEval callback
+      console.log('[StrudelDeck] Evaluating raw code (transpiler integrated in repl)');
+      await this.repl.evaluate(this.pendingCode);
       console.log('[StrudelDeck] Evaluate completed successfully');
-      this._isPlaying = true;
-      this.__emit('play');
       this.__emit('error', { error: null });
     } catch (e) {
       console.error('[StrudelDeck] Evaluate error:', e);

@@ -18,6 +18,12 @@ import { createCMTheme } from '../codemirror/createCMTheme';
 import { createErrorlayer } from '../codemirror/createErrorlayer';
 import { StuffContext } from '../StuffContext';
 
+// Strudel CodeMirror extensions — all imported here to ensure same module instance
+// for StateField/StateEffect pairing (avoids duplicate @codemirror/state issues)
+import { highlightExtension, updateMiniLocations, highlightMiniLocations } from '@strudel/codemirror/highlight.mjs';
+import { widgetPlugin, updateWidgets } from '@strudel/codemirror/widget.mjs';
+import { flashField, flash } from '@strudel/codemirror/flash.mjs';
+
 // == styles =======================================================================================
 const StyledReactCodeMirror = styled(ReactCodeMirror)<{ guttersEnabled: boolean }>`
   height: 100%;
@@ -116,6 +122,18 @@ function keyToLog(event: KeyboardEvent): string | null {
   return log;
 }
 
+// == types ========================================================================================
+export interface DeckEditorHandle {
+  focusEditor: () => void;
+  jumpToLine: (line: number) => void;
+  getEditorView: () => EditorView | undefined;
+  // Strudel visual operations (dispatch effects from the same module instance as the StateFields)
+  strudelUpdateMiniLocations: (locations: unknown[]) => void;
+  strudelHighlightMiniLocations: (atTime: number, haps: unknown[]) => void;
+  strudelUpdateWidgets: (widgets: unknown[]) => void;
+  strudelFlash: () => void;
+}
+
 // == component ====================================================================================
 export const DeckEditor = forwardRef(({
   codeAtom,
@@ -143,7 +161,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
   mode?: DeckMode;
-}, ref: React.Ref<{ focusEditor: () => void }>) => {
+}, ref: React.Ref<DeckEditorHandle>) => {
   const { storageManager } = useContext(StuffContext)!;
 
   const refCodeMirror = useRef<ReactCodeMirrorRef>(null);
@@ -224,53 +242,53 @@ export const DeckEditor = forwardRef(({
   const customKeymap: KeyBinding[] = useMemo(() => {
     console.log('[DeckEditor] Creating keymap, mode:', mode);
     return [
-    {
-      key: 'Mod-p',
-      preventDefault: true,
-      run: () => {
-        setLibraryOpening(true);
-        return false;
-      },
-    },
-    {
-      key: 'Mod-s',
-      preventDefault: true,
-      run: () => {
-        console.log('[DeckEditor] Mod-s pressed, calling onCompile');
-        onCompile();
-        return false;
-      },
-    },
-    {
-      key: 'Mod-r',
-      preventDefault: true,
-      run: () => {
-        console.log('[DeckEditor] Mod-r pressed, calling onApply');
-        onApply();
-        return false;
-      },
-      shift: () => {
-        onApplyImmediately();
-        return false;
-      },
-    },
-    ...[...Array(10)].flatMap((_, i) => [
       {
-        key: `Mod-${i}`,
+        key: 'Mod-p',
         preventDefault: true,
         run: () => {
-          handleLoadMemory(i.toString());
-          return true;
-        },
-        shift: () => {
-          handleSaveMemory(i.toString());
+          setLibraryOpening(true);
           return false;
         },
       },
-    ]),
-    ...braceJumpKeymap({ onBraceJump }),
-    ...defaultKeymap,
-  ];
+      {
+        key: 'Mod-s',
+        preventDefault: true,
+        run: () => {
+          console.log('[DeckEditor] Mod-s pressed, calling onCompile');
+          onCompile();
+          return false;
+        },
+      },
+      {
+        key: 'Mod-r',
+        preventDefault: true,
+        run: () => {
+          console.log('[DeckEditor] Mod-r pressed, calling onApply');
+          onApply();
+          return false;
+        },
+        shift: () => {
+          onApplyImmediately();
+          return false;
+        },
+      },
+      ...[...Array(10)].flatMap((_, i) => [
+        {
+          key: `Mod-${i}`,
+          preventDefault: true,
+          run: () => {
+            handleLoadMemory(i.toString());
+            return true;
+          },
+          shift: () => {
+            handleSaveMemory(i.toString());
+            return false;
+          },
+        },
+      ]),
+      ...braceJumpKeymap({ onBraceJump }),
+      ...defaultKeymap,
+    ];
   }, [onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory, mode]);
 
   // -- error layer --------------------------------------------------------------------------------
@@ -292,12 +310,21 @@ export const DeckEditor = forwardRef(({
   // Memoize the keymap extension so CodeMirror detects changes
   const keymapExtension = useMemo(
     () => Prec.highest(keymap.of(customKeymap)),
-    [customKeymap]
+    [customKeymap],
+  );
+
+  // Strudel CodeMirror extensions (pattern highlighting, widgets, flash)
+  // Always included regardless of mode — StateFields must be present from initial state
+  // to avoid "Field is not present in this state" errors during reconfigure.
+  // They are inert when no data is dispatched (i.e., in GLSL mode).
+  const strudelExtensions = useMemo(
+    () => [...highlightExtension, ...widgetPlugin, flashField],
+    [],
   );
 
   const extensions = useMemo(
-    () => [languageExtension, keymapExtension, errorlayer, backlayer],
-    [languageExtension, keymapExtension, errorlayer]
+    () => [languageExtension, keymapExtension, errorlayer, backlayer, ...strudelExtensions],
+    [languageExtension, keymapExtension, errorlayer, strudelExtensions],
   );
 
   // -- event handlers -----------------------------------------------------------------------------
@@ -386,10 +413,68 @@ export const DeckEditor = forwardRef(({
     );
   }, [refCodeMirror]);
 
+  const getEditorView = useCallback(() => {
+    return refCodeMirror.current?.view;
+  }, []);
+
+  // Strudel visual operations — using same module instance as the StateFields in extensions
+  const strudelUpdateMiniLocations = useCallback((locations: unknown[]) => {
+    const view = refCodeMirror.current?.view;
+    if (view) {
+      console.log('[DeckEditor] strudelUpdateMiniLocations: docLen:', view.state.doc.length, 'locations:', JSON.stringify(locations));
+      updateMiniLocations(view, locations);
+      // DIAGNOSTIC: verify that setMiniLocations effect was processed by the StateField
+      // by checking if we can find the highlight extension's fields in the state
+      try {
+        const exts = highlightExtension;
+        // highlightExtension[0] is the miniLocations StateField
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fieldValue = view.state.field(exts[0] as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const iter = (fieldValue as any).iter?.();
+        let markCount = 0;
+        const markIds: string[] = [];
+        if (iter) {
+          while (iter.value) {
+            markCount++;
+            markIds.push(iter.value?.spec?.id ?? 'no-id');
+            iter.next();
+          }
+        }
+        console.log('[DeckEditor] DIAGNOSTIC: marks in StateField:', markCount, 'ids:', markIds.join(', '));
+      } catch (e) {
+        console.log('[DeckEditor] DIAGNOSTIC: field access error:', (e as Error).message);
+      }
+    }
+  }, []);
+
+  const strudelHighlightMiniLocations = useCallback((atTime: number, haps: unknown[]) => {
+    const view = refCodeMirror.current?.view;
+    if (view) highlightMiniLocations(view, atTime, haps);
+  }, []);
+
+  const strudelUpdateWidgets = useCallback((widgets: unknown[]) => {
+    const view = refCodeMirror.current?.view;
+    if (view) updateWidgets(view, widgets);
+  }, []);
+
+  const strudelFlash = useCallback(() => {
+    const view = refCodeMirror.current?.view;
+    if (view) flash(view);
+  }, []);
+
   useImperativeHandle(
     ref,
-    () => ({ focusEditor, jumpToLine }),
-    [focusEditor, jumpToLine],
+    () => ({
+      focusEditor,
+      jumpToLine,
+      getEditorView,
+      strudelUpdateMiniLocations,
+      strudelHighlightMiniLocations,
+      strudelUpdateWidgets,
+      strudelFlash,
+    }),
+    [focusEditor, jumpToLine, getEditorView, strudelUpdateMiniLocations, strudelHighlightMiniLocations, strudelUpdateWidgets, strudelFlash],
   );
 
   // -- component ----------------------------------------------------------------------------------

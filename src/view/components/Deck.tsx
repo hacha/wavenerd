@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Analyser } from '../../audio/Analyser';
 import { DeckEditor } from './DeckEditor';
+import type { DeckEditorHandle } from './DeckEditor';
 import { DeckStatusBar } from './DeckStatusBar';
 import { atom, PrimitiveAtom, useAtom } from 'jotai';
 import { ThemeVars } from '../themes/ThemeVars';
@@ -15,8 +16,9 @@ import { DeckBraceJumpMap } from './DeckBraceJumpMap';
 import { StuffContext } from '../StuffContext';
 import type { DeckMode } from '../../audio/DeckSwitch';
 import type { DeckSwitch } from '../../audio/DeckSwitch';
-import type { StrudelDeck } from '../../strudel/StrudelDeck';
-import { initStrudel, waitForDeckInit } from '../../strudel/initStrudel';
+import type { StrudelDeck as StrudelDeckType } from '../../strudel/StrudelDeck';
+import { waitForDeckInit } from '../../strudel/initStrudel';
+import { Drawer } from '@strudel/draw/draw.mjs';
 
 // == styles =======================================================================================
 const fadeOut = keyframes`
@@ -106,7 +108,7 @@ export const Deck = forwardRef(({
   modeAtom: PrimitiveAtom<DeckMode>;
   strudelCodeAtom: PrimitiveAtom<string>;
   strudelHasEditAtom: PrimitiveAtom<boolean>;
-  strudelDeck: StrudelDeck;
+  strudelDeck: StrudelDeckType;
   deckSwitch: DeckSwitch;
 }, ref: React.Ref<{ focusEditor: (highlight: boolean) => void }>) => {
   const { storageManager } = useContext(StuffContext)!;
@@ -128,7 +130,7 @@ export const Deck = forwardRef(({
   const activeStoragePath = mode === 'glsl' ? storagePath : storagePath.replace('.glsl', '.strudel.js');
 
   // -- refs ---------------------------------------------------------------------------------------
-  const refEditor = useRef<{ focusEditor: () => void; jumpToLine: (line: number) => void }>(null);
+  const refEditor = useRef<DeckEditorHandle>(null);
 
   // -- beforeunload -------------------------------------------------------------------------------
   const handleBeforeUnload = useAtomCallback(useCallback((get, _, event: BeforeUnloadEvent) => {
@@ -246,6 +248,78 @@ export const Deck = forwardRef(({
   const handleBraceJump = useCallback((index: number) => {
     refBraceJumpMap.current?.update(index);
   }, []);
+
+  // -- strudel visual bridge ----------------------------------------------------------------------
+  useEffect(() => {
+    if (mode !== 'strudel') return;
+
+    const editor = () => refEditor.current;
+
+    // Drawer synchronizes animation frames with the Strudel scheduler
+    // onDraw receives visible haps and current time to highlight active mini locations
+    let drawFrameCount = 0;
+    const drawer = new Drawer(
+      (haps: unknown[], time: number) => {
+        if (drawFrameCount < 5 && haps.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const sample = haps[0] as any;
+          const locs = sample?.context?.locations?.map((l: { start: number; end: number }) => `${l.start}:${l.end}`);
+          const hasWhole = !!sample?.whole;
+          const wholeBegin = sample?.whole?.begin?.valueOf?.();
+          const endClipped = sample?.endClipped?.valueOf?.();
+          console.log(`[Deck] draw frame ${drawFrameCount}: haps=${haps.length}, time=${time.toFixed(4)}, whole=[${wholeBegin},${endClipped}], locations=${JSON.stringify(locs)}, contextKeys=${sample?.context ? Object.keys(sample.context) : 'none'}`);
+          drawFrameCount++;
+        }
+        // Pass ALL haps to highlightMiniLocations (it handles filtering internally)
+        editor()?.strudelHighlightMiniLocations(time, haps);
+      },
+      [0, 0], // [lookbehind, lookahead] — will be updated by invalidate
+    );
+
+    // afterEval: pass miniLocations and widgets to CodeMirror via DeckEditor ref, trigger flash
+    // Using ref methods ensures StateEffect instances match the StateFields (same module)
+    const handleAfterEval = ({ miniLocations, widgets }: { miniLocations: unknown[]; widgets: Array<{ type: string; [k: string]: unknown }> }) => {
+      const ed = editor();
+      console.log('[Deck] handleAfterEval: editor:', !!ed, 'miniLocations:', miniLocations.length, 'widgets:', widgets.length);
+      if (!ed) return;
+      ed.strudelUpdateMiniLocations(miniLocations);
+      // Filter out slider widgets (they require special UI handling)
+      const widgetsNoSlider = widgets.filter((w) => w.type !== 'slider');
+      ed.strudelUpdateWidgets(widgetsNoSlider);
+      ed.strudelFlash();
+      // Update Drawer's draw time based on painters/scheduler
+      drawer.invalidate(strudelDeck.repl?.scheduler);
+    };
+
+    // schedulerStart: start Drawer animation loop
+    const handleStart = ({ scheduler }: { scheduler: unknown }) => {
+      console.log('[Deck] handleStart: scheduler:', !!scheduler);
+      drawer.start(scheduler);
+    };
+
+    // schedulerStop: stop Drawer, clear highlights
+    const handleStop = () => {
+      drawer.stop();
+      editor()?.strudelUpdateMiniLocations([]);
+    };
+
+    strudelDeck.on('afterEval', handleAfterEval);
+    strudelDeck.on('schedulerStart', handleStart);
+    strudelDeck.on('schedulerStop', handleStop);
+
+    // If scheduler is already running (e.g., mode switched back to strudel), start drawer
+    if (strudelDeck.isPlaying && strudelDeck.repl?.scheduler) {
+      drawer.start(strudelDeck.repl.scheduler);
+    }
+
+    return () => {
+      drawer.stop();
+      strudelDeck.off('afterEval', handleAfterEval);
+      strudelDeck.off('schedulerStart', handleStart);
+      strudelDeck.off('schedulerStop', handleStop);
+      editor()?.strudelUpdateMiniLocations([]);
+    };
+  }, [mode, strudelDeck]);
 
   // -- init ---------------------------------------------------------------------------------------
   useEffect(() => {

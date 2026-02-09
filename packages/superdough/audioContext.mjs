@@ -17,6 +17,9 @@ export const setDefaultAudioContext = (ac) => {
   return audioContext;
 };
 
+// Alias expected by @strudel/webaudio >=1.2.6
+export const setAudioContext = setDefaultAudioContext;
+
 export function getAudioContextCurrentTime() {
   return getAudioContext().currentTime;
 }

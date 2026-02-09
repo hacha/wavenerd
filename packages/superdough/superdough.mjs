@@ -266,6 +266,12 @@ export async function initAudioOnFirstClick(options) {
 const controllers = new Map();
 let defaultController = null;
 
+// Set the default controller (expected by @strudel/webaudio >=1.2.6)
+export function setSuperdoughAudioController(controller) {
+  defaultController = controller;
+  controllers.set('default', controller);
+}
+
 // Get the default controller (for backward compatibility)
 function getSuperdoughAudioController() {
   if (defaultController == null) {

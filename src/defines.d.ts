@@ -7,13 +7,18 @@ declare module '@strudel/core' {
     value: Record<string, unknown>;
     whole?: { begin: { valueOf(): number } };
     ensureObjectValue(): void;
+    isActive(time: number): boolean;
   }
 
   export interface Repl {
     evaluate(code: string, autostart?: boolean): Promise<void>;
     start(): void;
     stop(): void;
+    pause(): void;
+    toggle(): void;
     setCps(cps: number): void;
+    scheduler: unknown;
+    state: Record<string, unknown>;
   }
 
   export type OutputCallback = (hap: Hap, deadline: number, hapDuration: number, cps: number, t: number) => void | Promise<void>;
@@ -21,6 +26,10 @@ declare module '@strudel/core' {
   export interface ReplOptions {
     getTime?: () => number;
     defaultOutput?: OutputCallback;
+    transpiler?: (code: string, options?: Record<string, unknown>) => { output: string; miniLocations?: unknown[]; widgets?: unknown[] };
+    afterEval?: (args: { code: string; pattern: unknown; meta?: Record<string, unknown> }) => void;
+    onToggle?: (started: boolean) => void;
+    id?: string;
     [key: string]: unknown;
   }
 
@@ -46,7 +55,71 @@ declare module '@strudel/mini' {
 }
 
 declare module '@strudel/transpiler' {
-  // Transpiler exports
+  export function transpiler(
+    input: string,
+    options?: {
+      wrapAsync?: boolean;
+      addReturn?: boolean;
+      emitMiniLocations?: boolean;
+      emitWidgets?: boolean;
+      id?: string;
+    }
+  ): { output: string; miniLocations?: unknown[]; widgets?: unknown[] };
+  export function registerWidgetType(type: string): void;
+  export function registerLanguage(type: string, config: unknown): void;
+  export function getWidgetID(widgetConfig: unknown): string;
+}
+
+declare module '@strudel/codemirror/highlight.mjs' {
+  import type { Extension } from '@codemirror/view';
+  import type { EditorView } from '@codemirror/view';
+  export const highlightExtension: Extension[];
+  export function updateMiniLocations(view: EditorView, locations: unknown[]): void;
+  export function highlightMiniLocations(view: EditorView, atTime: number, haps: unknown[]): void;
+  export function isPatternHighlightingEnabled(on: boolean, config?: unknown): Extension;
+}
+
+declare module '@strudel/codemirror/widget.mjs' {
+  import type { Extension } from '@codemirror/view';
+  import type { EditorView } from '@codemirror/view';
+  export const widgetPlugin: Extension[];
+  export function updateWidgets(view: EditorView, widgets: unknown[]): void;
+  export function registerWidget(type: string, fn: unknown): void;
+  export function setWidget(id: string, el: HTMLElement): void;
+}
+
+declare module '@strudel/codemirror/flash.mjs' {
+  import type { Extension } from '@codemirror/view';
+  import type { EditorView } from '@codemirror/view';
+  export const flashField: Extension;
+  export function flash(view: EditorView, ms?: number): void;
+  export function isFlashEnabled(on: boolean): Extension;
+}
+
+declare module '@strudel/draw/draw.mjs' {
+  export class Drawer {
+    visibleHaps: unknown[];
+    lastFrame: unknown;
+    drawTime: [number, number];
+    painters: unknown[];
+    constructor(onDraw: (haps: unknown[], time: number, drawer: Drawer, painters: unknown[]) => void, drawTime: [number, number]);
+    setDrawTime(drawTime: [number, number]): void;
+    invalidate(scheduler?: unknown, t?: number): void;
+    start(scheduler: unknown): void;
+    stop(): void;
+  }
+  export class Framer {
+    constructor(onFrame: () => void, onError?: (e: unknown) => void);
+    start(): void;
+    stop(): void;
+  }
+  export function getDrawContext(id: string, options?: Record<string, unknown>): CanvasRenderingContext2D;
+  export function cleanupDraw(clearScreen?: boolean, id?: string): void;
+}
+
+declare module '@strudel/tonal' {
+  const tonal: Record<string, unknown>;
+  export = tonal;
 }
 
 // Wavenerd superdough fork with custom output support
@@ -71,4 +144,6 @@ declare module '@wavenerd/superdough' {
   export function getAudioContext(): AudioContext;
 
   export function initAudio(options?: Record<string, unknown>): Promise<void>;
+
+  export function samples(path: string): Promise<void>;
 }
