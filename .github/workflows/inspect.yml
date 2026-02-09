@@ -30,6 +30,9 @@ jobs:
       - name: init stuff
         uses: ./.github/actions/init
 
+      - name: build superdough
+        run: yarn build:superdough
+
       - name: build
         run: yarn build
 
