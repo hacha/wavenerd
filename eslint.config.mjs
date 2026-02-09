@@ -9,6 +9,7 @@ export default [
   {
     ignores: [
       '**/dist/**/*',
+      'packages/**/*',
     ],
   },
   { languageOptions: { globals: globals.browser } },
