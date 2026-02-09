@@ -1,4 +1,5 @@
 import { EventEmittable } from '../utils/EventEmittable';
+import type { IDeck } from '../IDeck';
 import { superdough, getAudioContext } from '@wavenerd/superdough';
 import { webaudioRepl } from '@strudel/webaudio';
 import { transpiler } from '@strudel/transpiler';
@@ -40,13 +41,22 @@ const hap2value = (hap: Hap) => {
   return hap.value;
 };
 
-export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
+export class StrudelDeck extends EventEmittable<StrudelDeckEvents> implements IDeck {
   public repl: Repl | null = null;
   private pendingCode: string | null = null;
   private _cueStatus: StrudelCueStatus = 'none';
   private _isPlaying = false;
   private _bpm = 140;
   private _controllerId: string | null = null;
+  private _readyPromise: Promise<void>;
+  private _resolveReady!: () => void;
+
+  constructor() {
+    super();
+    this._readyPromise = new Promise<void>((resolve) => {
+      this._resolveReady = resolve;
+    });
+  }
 
   public get cueStatus(): StrudelCueStatus {
     return this._cueStatus;
@@ -94,6 +104,7 @@ export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
     });
 
     console.log(`[StrudelDeck] Controller ID set to ${controllerId}, REPL created with transpiler`);
+    this._resolveReady();
   }
 
   public setRepl(repl: Repl): void {
@@ -101,6 +112,8 @@ export class StrudelDeck extends EventEmittable<StrudelDeckEvents> {
   }
 
   public async compile(code: string): Promise<void> {
+    await this._readyPromise;
+
     if (!this.repl) {
       this.__emit('error', { error: 'Strudel REPL not initialized' });
       return;

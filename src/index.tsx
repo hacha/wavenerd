@@ -22,7 +22,7 @@ import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
 import { DeckSwitch } from './audio/DeckSwitch';
 import { StrudelDeck } from './strudel/StrudelDeck';
-import { initStrudel, getControllerId, signalDeckReady } from './strudel/initStrudel';
+import { initStrudel, getControllerId } from './strudel/initStrudel';
 import { createSuperdoughController } from '@wavenerd/superdough';
 
 // == setup ========================================================================================
@@ -81,10 +81,7 @@ initStrudel(audio).then(() => {
 
   // Set controller IDs on StrudelDecks (this creates REPLs with custom output)
   strudelDeckA.setControllerId(controllerIdA);
-  signalDeckReady('A');
-
   strudelDeckB.setControllerId(controllerIdB);
-  signalDeckReady('B');
 
   console.log('[Main] Strudel decks configured with custom routing');
 }).catch((e) => {
