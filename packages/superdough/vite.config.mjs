@@ -1,9 +1,12 @@
-const { defineConfig } = require('vite');
-const { resolve } = require('path');
-const bundleAudioWorkletPlugin = require('vite-plugin-bundle-audioworklet').default;
+import { defineConfig } from 'vite';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import bundleAudioWorkletPlugin from 'vite-plugin-bundle-audioworklet';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
-module.exports = defineConfig({
+export default defineConfig({
   plugins: [bundleAudioWorkletPlugin()],
   build: {
     lib: {
