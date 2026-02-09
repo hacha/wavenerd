@@ -233,7 +233,6 @@ export const Deck = forwardRef(({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const sample = haps[0] as any;
           const locs = sample?.context?.locations?.map((l: { start: number; end: number }) => `${l.start}:${l.end}`);
-          const hasWhole = !!sample?.whole;
           const wholeBegin = sample?.whole?.begin?.valueOf?.();
           const endClipped = sample?.endClipped?.valueOf?.();
           console.log(`[Deck] draw frame ${drawFrameCount}: haps=${haps.length}, time=${time.toFixed(4)}, whole=[${wholeBegin},${endClipped}], locations=${JSON.stringify(locs)}, contextKeys=${sample?.context ? Object.keys(sample.context) : 'none'}`);
