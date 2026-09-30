@@ -27,6 +27,8 @@ export class StrudelScheduler {
   private __next: { cycle: number; takePattern: () => Pattern | null } | null = null;
   private __prevEnd: number | null = null;
   private __intervalId: ReturnType<typeof setInterval> | null = null;
+  private __interval = 0.0;
+  private __lastTickTime = 0.0;
 
   public get isRunning(): boolean {
     return this.__intervalId != null;
@@ -58,7 +60,19 @@ export class StrudelScheduler {
 
   public start(interval = 0.05): void {
     if (this.__intervalId != null) { return; }
+    this.__interval = interval;
     this.__intervalId = setInterval(() => this.tick(), interval * 1000.0);
+  }
+
+  /**
+   * Tick if the interval timer is late, e.g. throttled in a hidden tab.
+   */
+  public poke(): void {
+    if (this.__intervalId == null) { return; }
+
+    if (this.audio.currentTime - this.__lastTickTime > 1.5 * this.__interval) {
+      this.tick();
+    }
   }
 
   public stop(): void {
@@ -95,6 +109,8 @@ export class StrudelScheduler {
 
   public tick(): void {
     const { audio, clock } = this;
+
+    this.__lastTickTime = audio.currentTime;
 
     if (!clock.isRunning) {
       this.__prevEnd = null;

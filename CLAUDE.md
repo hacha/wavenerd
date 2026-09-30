@@ -79,7 +79,7 @@ Initialized in `src/index.tsx`. Some are passed to React via `StuffContext` (`sr
 ### Audio Processing
 
 AudioWorklet processors in `src/audio/` (`*Processor.js` paired with `*Node.ts`):
-DCRemoval, HardClip, LookaheadLimiter, FirstOrderFilter, TimeDomainDataProbe, WavRecorder.
+DCRemoval, HardClip, LookaheadLimiter, FirstOrderFilter, TimeDomainDataProbe, Tick, WavRecorder.
 
 ### Plugin Systems
 

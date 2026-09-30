@@ -22,6 +22,7 @@ import { loadFileAsImage } from './utils/loadFileAsImage';
 import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
 import { DeckSourceSwitch } from './audio/DeckSourceSwitch';
+import { TickNode } from './audio/TickNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
 import './index.css';
@@ -40,6 +41,7 @@ await HardClipNode.addModule(audio);
 await LookaheadLimiterNode.addModule(audio);
 await FirstOrderFilterNode.addModule(audio);
 await WavRecorderNode.addModule(audio);
+await TickNode.addModule(audio);
 
 const master = audio.createGain();
 
@@ -91,15 +93,38 @@ router.addSource('deckA', sourceSwitchA.output);
 router.addSource('deckB', sourceSwitchB.output);
 
 // == updates ======================================================================================
-async function updateAudio() {
-  await Promise.all([
-    deckA.update(),
-    deckB.update(),
-  ]);
+let isUpdatingAudio = false;
 
-  setTimeout(updateAudio);
+async function updateAudio() {
+  // `WavenerdDeck.update()` must not overlap itself
+  if (isUpdatingAudio) { return; }
+  isUpdatingAudio = true;
+
+  try {
+    await Promise.all([
+      deckA.update(),
+      deckB.update(),
+    ]);
+  } finally {
+    isUpdatingAudio = false;
+  }
 }
-updateAudio();
+
+async function updateAudioLoop() {
+  await updateAudio();
+
+  setTimeout(updateAudioLoop);
+}
+updateAudioLoop();
+
+// Timers are throttled to once per second when the tab is hidden and silent for a while.
+// Ticks from the audio thread keep the decks going in that case.
+const tickNode = new TickNode(audio);
+tickNode.onTick(() => {
+  updateAudio();
+  strudelDeckA.poke();
+  strudelDeckB.poke();
+});
 
 const frameEmitter = new FrameEmitter();
 
