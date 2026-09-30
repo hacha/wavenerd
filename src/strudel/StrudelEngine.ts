@@ -4,6 +4,7 @@ import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
 import { EventEmittable } from '../utils/EventEmittable';
 import { DeckClock } from './DeckClock';
 import { prebake } from './prebake';
+import { UserSamples } from './UserSamples';
 
 const { evalScope, Pattern } = coreModule;
 
@@ -38,6 +39,11 @@ export interface StrudelEngineEvents {
 export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
   public readonly audio: AudioContext;
   public readonly clock: DeckClock;
+
+  /**
+   * Samples of the storage. They do not need the network.
+   */
+  public readonly userSamples: UserSamples;
 
   /**
    * Resolves when Strudel can evaluate code. Does not wait for the sounds to be loaded.
@@ -75,6 +81,7 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
     setAudioContext(audio);
 
     this.clock = new DeckClock(hostDeck);
+    this.userSamples = new UserSamples(audio);
     this.ready = this.__init();
 
     window.addEventListener('online', () => {
