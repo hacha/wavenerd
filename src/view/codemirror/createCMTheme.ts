@@ -118,6 +118,20 @@ export function createCMTheme(theme: Theme): {
     '.cm-errorlayer': {
       borderBottom: '2px solid ' + invalid,
     },
+
+    // mini-notation in Strudel strings. also covers the spans of the syntax highlighter inside
+    '.cm-mini-word, .cm-mini-word *': {
+      color: strings,
+    },
+    '.cm-mini-number, .cm-mini-number *': {
+      color: constants,
+    },
+    '.cm-mini-operator, .cm-mini-operator *': {
+      color: operators,
+    },
+    '.cm-mini-rest, .cm-mini-rest *': {
+      color: comments,
+    },
   }, { dark });
 
   // -- syntax highlighting --------------------------------------------------------------------------

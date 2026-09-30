@@ -3,7 +3,8 @@ import { type Analyser } from '../../audio/Analyser';
 import { DeckEditor } from './DeckEditor';
 import { DeckStatusBar } from './DeckStatusBar';
 import { atom, type PrimitiveAtom } from 'jotai';
-import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
+import { type CodeDeck } from '../../CodeDeck';
+import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { useAtomCallback } from 'jotai/utils';
 import { DeckLog } from './DeckLog';
 import { DeckMemoryUpdateBalloon } from './DeckMemoryUpdateBalloon';
@@ -23,11 +24,15 @@ export const Deck = forwardRef(({
   compileTimeAtom,
   analyser,
   deck,
+  mode,
+  onToggleMode,
   gainParamName,
   filterParamName,
   storagePath,
 }: {
-  deck: WavenerdDeck;
+  deck: CodeDeck;
+  mode: DeckSourceMode;
+  onToggleMode: () => void;
   gainParamName: string;
   filterParamName: string;
   storagePath: string;
@@ -157,6 +162,7 @@ export const Deck = forwardRef(({
       />
       <DeckEditor
         ref={refEditor}
+        mode={mode}
         className="absolute left-0 top-0 w-full h-[calc(100%-24px)]"
         codeAtom={codeAtom}
         logsAtom={logsAtom}
@@ -172,6 +178,8 @@ export const Deck = forwardRef(({
       <DeckLog logsAtom={logsAtom} />
       <DeckStatusBar
         className="absolute left-0 bottom-0 w-full h-6"
+        mode={mode}
+        onToggleMode={onToggleMode}
         errorAtom={errorAtom}
         cueStatusAtom={cueStatusAtom}
         hasEditAtom={hasEditAtom}

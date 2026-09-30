@@ -13,6 +13,26 @@ export default defineConfig({
     exclude: [
       '@0b5vr/wavenerd-deck',
     ],
+    // prebundle upfront; a late re-optimization can load a second copy of superdough
+    include: [
+      'superdough',
+      '@strudel/core',
+      '@strudel/mini',
+      '@strudel/tonal',
+      '@strudel/webaudio',
+      '@strudel/transpiler',
+      '@strudel/soundfonts',
+    ],
+  },
+  resolve: {
+    // superdough and @strudel/core hold singletons; there must be only one instance of each
+    dedupe: [
+      'superdough',
+      'nanostores',
+      '@strudel/core',
+      '@codemirror/state',
+      '@codemirror/view',
+    ],
   },
   plugins: [
     react(),

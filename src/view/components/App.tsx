@@ -1,6 +1,6 @@
 import 'simplebar-react/dist/simplebar.min.css';
 
-import { deckACodeAtom, deckACompileTimeAtom, deckACueStatusAtom, deckAErrorAtom, deckAHasEditAtom, deckBCodeAtom, deckBCompileTimeAtom, deckBCueStatusAtom, deckBErrorAtom, deckBHasEditAtom } from '../stores/atoms/deck';
+import { type DeckAtoms, deckAGlslAtoms, deckAStrudelAtoms, deckBGlslAtoms, deckBStrudelAtoms } from '../stores/atoms/deck';
 import { AssetList } from './AssetList';
 import { ContextMenu } from './ContextMenu';
 import { Deck } from './Deck';
@@ -23,6 +23,9 @@ import { type Stuff, StuffContext } from '../StuffContext';
 import { useFullscreenSubscriber } from '../stores/hooks/useFullscreenSubscriber';
 import { useStorageSubscribers } from '../stores/hooks/useStorageSubscribers';
 import { ThemeStyle } from './ThemeStyle';
+import { type Analyser } from '../../audio/Analyser';
+import { type CodeDeck } from '../../CodeDeck';
+import clsx from 'clsx';
 
 // == hooks ========================================================================================
 function useFocusDeckShortcuts({
@@ -48,9 +51,79 @@ function useFocusDeckShortcuts({
   }, [focusDeckAEditor, focusDeckBEditor]);
 }
 
+// == children =====================================================================================
+type DeckRef = { focusEditor: (highlight: boolean) => void };
+
+/**
+ * A deck slot (A or B). Keeps both the GLSL deck and the Strudel deck mounted and shows the one of the current mode,
+ * so switching the mode neither reloads the code nor interrupts the sound.
+ */
+function DeckSlot({
+  slot,
+  refDeck,
+  glslDeck,
+  strudelDeck,
+  glslAtoms,
+  strudelAtoms,
+  analyser,
+}: {
+  slot: 'a' | 'b';
+  refDeck: React.Ref<DeckRef>;
+  glslDeck: CodeDeck;
+  strudelDeck: CodeDeck;
+  glslAtoms: DeckAtoms;
+  strudelAtoms: DeckAtoms;
+  analyser: Analyser;
+}) {
+  const modeKey = slot === 'a' ? 'deckAMode' : 'deckBMode';
+  const mode = useSettings(modeKey);
+
+  const handleToggleMode = useCallback(() => {
+    SETTINGSMAN.set(modeKey, SETTINGSMAN.values[modeKey] === 'strudel' ? 'glsl' : 'strudel');
+  }, [modeKey]);
+
+  const common = {
+    analyser,
+    gainParamName: `/mixer/channel_${slot}/gain`,
+    filterParamName: `/mixer/channel_${slot}/filter`,
+    onToggleMode: handleToggleMode,
+  };
+
+  return (
+    <>
+      <Deck
+        ref={mode === 'glsl' ? refDeck : undefined}
+        className={clsx('grow', mode !== 'glsl' && 'hidden')}
+        mode="glsl"
+        deck={glslDeck}
+        storagePath={`decks/${slot}.glsl`}
+        codeAtom={glslAtoms.code}
+        hasEditAtom={glslAtoms.hasEdit}
+        errorAtom={glslAtoms.error}
+        cueStatusAtom={glslAtoms.cueStatus}
+        compileTimeAtom={glslAtoms.compileTime}
+        {...common}
+      />
+      <Deck
+        ref={mode === 'strudel' ? refDeck : undefined}
+        className={clsx('grow', mode !== 'strudel' && 'hidden')}
+        mode="strudel"
+        deck={strudelDeck}
+        storagePath={`decks/${slot}.strudel.js`}
+        codeAtom={strudelAtoms.code}
+        hasEditAtom={strudelAtoms.hasEdit}
+        errorAtom={strudelAtoms.error}
+        cueStatusAtom={strudelAtoms.cueStatus}
+        compileTimeAtom={strudelAtoms.compileTime}
+        {...common}
+      />
+    </>
+  );
+}
+
 // == component ====================================================================================
 export function OutOfContextApp() {
-  const { deckA, deckB, mixer, recorder, storageManager } = useContext(StuffContext)!;
+  const { deckA, deckB, strudelDeckA, strudelDeckB, mixer, recorder, storageManager } = useContext(StuffContext)!;
 
   const uiMargin = useSettings('uiMargin');
   const deckBShow = useSettings('deckBShow');
@@ -61,17 +134,21 @@ export function OutOfContextApp() {
 
   useMidiSubscribers(MIDIMAN);
   useSettingsSubscribers(SETTINGSMAN);
-  useDeckSubscribers(deckA, deckA, deckB);
+  useDeckSubscribers(
+    deckA,
+    { glslA: deckA, glslB: deckB, strudelA: strudelDeckA, strudelB: strudelDeckB },
+    { glslA: deckAGlslAtoms, glslB: deckBGlslAtoms, strudelA: deckAStrudelAtoms, strudelB: deckBStrudelAtoms },
+  );
   useRecorderSubscribers(recorder);
   useStorageSubscribers(storageManager);
   useFullscreenSubscriber();
 
-  const refDeckA = useRef<{ focusEditor: (highlight: boolean) => void }>(null);
+  const refDeckA = useRef<DeckRef>(null);
   const focusDeckAEditor = useCallback(() => {
     refDeckA.current?.focusEditor?.(true);
   }, [refDeckA]);
 
-  const refDeckB = useRef<{ focusEditor: (highlight: boolean) => void }>(null);
+  const refDeckB = useRef<DeckRef>(null);
   const focusDeckBEditor = useCallback(() => {
     refDeckB.current?.focusEditor?.(true);
   }, [refDeckB]);
@@ -90,19 +167,14 @@ export function OutOfContextApp() {
           <Header className="h-8" />
           <div className="flex justify-between flex-row grow gap-0.5">
             <div className="flex flex-col grow">
-              <Deck
-                ref={refDeckA}
-                className="grow"
-                codeAtom={deckACodeAtom}
-                hasEditAtom={deckAHasEditAtom}
-                errorAtom={deckAErrorAtom}
-                cueStatusAtom={deckACueStatusAtom}
-                compileTimeAtom={deckACompileTimeAtom}
+              <DeckSlot
+                slot="a"
+                refDeck={refDeckA}
+                glslDeck={deckA}
+                strudelDeck={strudelDeckA}
+                glslAtoms={deckAGlslAtoms}
+                strudelAtoms={deckAStrudelAtoms}
                 analyser={mixer.analyserInA}
-                deck={deckA}
-                storagePath="decks/a.glsl"
-                gainParamName="/mixer/channel_a/gain"
-                filterParamName="/mixer/channel_a/filter"
               />
               <DeckKnobs className="h-16" paramPrefix="/deck_a" />
             </div>
@@ -121,19 +193,14 @@ export function OutOfContextApp() {
             )}
             {deckBShow && (
               <div className="flex flex-col grow">
-                <Deck
-                  ref={refDeckB}
-                  className="grow"
-                  codeAtom={deckBCodeAtom}
-                  hasEditAtom={deckBHasEditAtom}
-                  errorAtom={deckBErrorAtom}
+                <DeckSlot
+                  slot="b"
+                  refDeck={refDeckB}
+                  glslDeck={deckB}
+                  strudelDeck={strudelDeckB}
+                  glslAtoms={deckBGlslAtoms}
+                  strudelAtoms={deckBStrudelAtoms}
                   analyser={mixer.analyserInB}
-                  cueStatusAtom={deckBCueStatusAtom}
-                  compileTimeAtom={deckBCompileTimeAtom}
-                  deck={deckB}
-                  storagePath="decks/b.glsl"
-                  gainParamName="/mixer/channel_b/gain"
-                  filterParamName="/mixer/channel_b/filter"
                 />
                 <DeckKnobs className="h-16" paramPrefix="/deck_b" />
               </div>

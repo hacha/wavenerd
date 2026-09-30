@@ -4,6 +4,7 @@ import { type MasterLimiterModeType } from './audio/Mixer';
 import { migrateSettingsManagerStorage } from './migrateSettingsManagerStorage';
 import { throttle } from 'throttle-debounce';
 import { type StorageManager } from './StorageManager';
+import { type DeckSourceMode } from './audio/DeckSourceSwitch';
 
 export type XFaderModeType = 'none' | 'constantPower' | 'cut' | 'linear' | 'transition';
 
@@ -37,6 +38,8 @@ export interface Settings {
   uiMargin: string;
   headerItems: string;
   headerIcons: string;
+  deckAMode: DeckSourceMode;
+  deckBMode: DeckSourceMode;
   deckBShow: boolean;
   libraryShow: boolean;
   mixerShow: boolean;
@@ -77,6 +80,8 @@ export const defaultSettings: Settings = {
   uiMargin: '0px 0px 0px 0px',
   headerItems: 'logo,transport,time,beat-number,bpm,nudge',
   headerIcons: 'recorder,midi,settings,help,github',
+  deckAMode: 'glsl',
+  deckBMode: 'glsl',
   deckBShow: true,
   libraryShow: true,
   mixerShow: true,

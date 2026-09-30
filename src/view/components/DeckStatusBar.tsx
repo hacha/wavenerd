@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { atom, type PrimitiveAtom, useAtomValue } from 'jotai';
 import styles from './DeckStatusBar.module.css';
 import { useCallback, useMemo } from 'react';
@@ -10,6 +11,8 @@ import IconMute from '~icons/mdi/volume-mute';
 import IconPlay from '~icons/mdi/play';
 import { useSettings } from '../stores/hooks/useSettings';
 import { midiParamsAtom } from '../stores/atoms/midi';
+import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
+import { parseErrorLines } from '../utils/parseErrorLines';
 
 // == constants ====================================================================================
 const iconCls = 'w-5 h-5 m-0.5';
@@ -48,6 +51,7 @@ function CompileTime({ compileTimeAtom }: { compileTimeAtom: PrimitiveAtom<numbe
 }
 
 function Message({
+  mode,
   cueStatusAtom,
   errorAtom,
   hasEditAtom,
@@ -55,6 +59,7 @@ function Message({
   filterParamName,
   onJumpToLine,
 }: {
+  mode: DeckSourceMode;
   cueStatusAtom: PrimitiveAtom<'none' | 'compiling' | 'ready' | 'applying'>;
   errorAtom: PrimitiveAtom<string | null>;
   hasEditAtom: PrimitiveAtom<boolean>;
@@ -73,25 +78,23 @@ function Message({
     return error?.split('\n')[0];
   }, [error]);
 
+  const errorLine = useMemo(() => parseErrorLines(mode, error)[0], [mode, error]);
+
   const onClickError = useCallback(() => {
-    if (error == null) {
+    if (errorLine == null) {
       return;
     }
 
-    const match = error.match(/ERROR: (\d+):(\d+)/);
-    const line = match?.[2];
-    if (line == null) {
-      return;
-    }
+    onJumpToLine(errorLine);
+  }, [errorLine, onJumpToLine]);
 
-    onJumpToLine(parseInt(line, 10));
-  }, [error, onJumpToLine]);
+  const noun = mode === 'strudel' ? 'pattern' : 'shader';
 
   if (error != null) {
     return (
       <div
-        className={`${contentCls} cursor-pointer hover:opacity-80`}
-        data-stalker="Click here to jump to the line of the error"
+        className={clsx(contentCls, errorLine != null && 'cursor-pointer hover:opacity-80')}
+        data-stalker={errorLine != null ? 'Click here to jump to the line of the error' : undefined}
         onClick={onClickError}
       >
         <IconError className={`${iconCls} text-error`} />
@@ -100,7 +103,7 @@ function Message({
     );
   } else if (cueStatus === 'compiling') {
     return (
-      <div className={contentCls} data-stalker="The shader code is being compiled">
+      <div className={contentCls} data-stalker={`The ${noun} code is being compiled`}>
         <IconBuild className={`${iconCls} text-accent`} />
         <div className={styles.blinkAccent}>Compiling...</div>
       </div>
@@ -113,7 +116,7 @@ function Message({
     return (
       <div
         className={contentCls}
-        data-stalker="A shader is successfully compiled and ready to be applied&#10;Ctrl+R to apply the shader at the next bar"
+        data-stalker={`A ${noun} is successfully compiled and ready to be applied\nCtrl+R to apply the ${noun} at the next bar`}
       >
         <IconCheck className={`${iconCls} text-green`} />
         <div className={styles.blinkGreen}>{text}</div>
@@ -127,7 +130,7 @@ function Message({
     return (
       <div
         className={contentCls}
-        data-stalker="The shader will be applied at the next bar"
+        data-stalker={`The ${noun} will be applied at the next bar`}
       >
         <div className={`${iconCls} relative`}>
           <IconApply className="absolute w-full h-full text-accent" />
@@ -185,8 +188,37 @@ function Message({
   }
 }
 
+const modeLabels: [DeckSourceMode, string][] = [
+  ['glsl', 'GLSL'],
+  ['strudel', 'Strudel'],
+];
+
+function ModeToggle({ mode, onToggleMode }: {
+  mode: DeckSourceMode;
+  onToggleMode: () => void;
+}) {
+  return (
+    <div
+      className="flex text-xs mx-1 rounded-sm overflow-hidden border border-bar-fg cursor-pointer hover:opacity-80 active:opacity-60"
+      onClick={onToggleMode}
+      data-stalker="Switch the deck between GLSL and Strudel"
+    >
+      {modeLabels.map(([value, label]) => (
+        <div
+          key={value}
+          className={clsx('px-1 py-0.5', value === mode ? 'bg-bar-fg text-bar-bg' : 'opacity-50')}
+        >
+          {label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // == component ====================================================================================
 export function DeckStatusBar({
+  mode,
+  onToggleMode,
   onCompile,
   onApply,
   onApplyImmediately,
@@ -199,6 +231,8 @@ export function DeckStatusBar({
   filterParamName,
   className,
 }: {
+  mode: DeckSourceMode;
+  onToggleMode: () => void;
   onCompile: () => void;
   onApply: () => void;
   onApplyImmediately: () => void;
@@ -226,6 +260,7 @@ export function DeckStatusBar({
       className={`flex items-center leading-none bg-bar-bg text-bar-fg overflow-hidden *:shrink-0 ${className ?? ''}`}
     >
       <Message
+        mode={mode}
         cueStatusAtom={cueStatusAtom}
         errorAtom={errorAtom}
         hasEditAtom={hasEditAtom}
@@ -234,15 +269,16 @@ export function DeckStatusBar({
         onJumpToLine={onJumpToLine}
       />
       {compileTimeEnabled && <CompileTime compileTimeAtom={compileTimeAtom} />}
+      <ModeToggle mode={mode} onToggleMode={onToggleMode} />
       <IconBuild
         className={iconButtonCls}
         onClick={onCompile}
-        data-stalker="Compile the shader code (Ctrl+S)"
+        data-stalker="Compile the code (Ctrl+S)"
       />
       <IconApply
         className={iconButtonCls}
         onClick={handleClickApply}
-        data-stalker="Apply the compiled shader code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately"
+        data-stalker="Apply the compiled code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately"
       />
     </div>
   );

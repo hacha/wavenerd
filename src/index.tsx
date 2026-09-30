@@ -21,6 +21,9 @@ import { StorageManager } from './StorageManager';
 import { loadFileAsImage } from './utils/loadFileAsImage';
 import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
+import { DeckSourceSwitch } from './audio/DeckSourceSwitch';
+import { StrudelEngine } from './strudel/StrudelEngine';
+import { StrudelDeck } from './strudel/StrudelDeck';
 import './index.css';
 
 // == setup ========================================================================================
@@ -49,8 +52,21 @@ const deckA = new WavenerdDeck(deckOptions);
 const deckB = new WavenerdDeck({ ...deckOptions, hostDeck: deckA });
 const mixer = new Mixer(audio);
 
-deckA.node.connect(mixer.inputA);
-deckB.node.connect(mixer.inputB);
+// strudel
+const strudelEngine = new StrudelEngine({ audio, hostDeck: deckA });
+const strudelDeckA = new StrudelDeck({ engine: strudelEngine, id: 'deckA' });
+const strudelDeckB = new StrudelDeck({ engine: strudelEngine, id: 'deckB' });
+
+// each slot plays either GLSL or Strudel
+const sourceSwitchA = new DeckSourceSwitch(audio);
+deckA.node.connect(sourceSwitchA.inputGlsl);
+strudelDeckA.output.connect(sourceSwitchA.inputStrudel);
+sourceSwitchA.output.connect(mixer.inputA);
+
+const sourceSwitchB = new DeckSourceSwitch(audio);
+deckB.node.connect(sourceSwitchB.inputGlsl);
+strudelDeckB.output.connect(sourceSwitchB.inputStrudel);
+sourceSwitchB.output.connect(mixer.inputB);
 
 const reverb = new Reverb(audio);
 mixer.output.connect(reverb.input);
@@ -71,8 +87,8 @@ const router = new AudioDestinationRouter(audio);
 
 router.addSource('master', masterGain);
 router.addSource('cue', cueMixer.output);
-router.addSource('deckA', deckA.node);
-router.addSource('deckB', deckB.node);
+router.addSource('deckA', sourceSwitchA.output);
+router.addSource('deckB', sourceSwitchB.output);
 
 // == updates ======================================================================================
 async function updateAudio() {
@@ -191,6 +207,13 @@ function applyMidiParam({ paramKey, value }: { paramKey: string; value: number }
   if (paramKey === '/deck_b/knob5') { deckB.setParam('knob5', value); }
   if (paramKey === '/deck_b/knob6') { deckB.setParam('knob6', value); }
   if (paramKey === '/deck_b/knob7') { deckB.setParam('knob7', value); }
+
+  // Strudel decks share the knobs of their slot, whichever mode is active
+  const strudelKnob = /^\/deck_([ab])\/(knob[0-7])$/.exec(paramKey);
+  if (strudelKnob != null) {
+    const strudelDeck = strudelKnob[1] === 'a' ? strudelDeckA : strudelDeckB;
+    strudelDeck.setParam(strudelKnob[2], value);
+  }
 }
 
 MIDIMAN.on('initStorage', () => {
@@ -216,6 +239,17 @@ function applySettings(settings: Partial<Settings>) {
   if (settings.latencyBlocks != null) {
     deckA.latencyBlocks = settings.latencyBlocks;
     deckB.latencyBlocks = settings.latencyBlocks;
+  }
+
+  // the GLSL deck keeps running in the Strudel mode, since its BeatManager is the clock
+  if (settings.deckAMode != null) {
+    sourceSwitchA.mode = settings.deckAMode;
+    strudelDeckA.active = settings.deckAMode === 'strudel';
+  }
+
+  if (settings.deckBMode != null) {
+    sourceSwitchB.mode = settings.deckBMode;
+    strudelDeckB.active = settings.deckBMode === 'strudel';
   }
 
   if (settings.masterDCRemoval != null) {
@@ -254,6 +288,12 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// == strudel dev tools ============================================================================
+if (new URLSearchParams(location.search).has('strudelDev')) {
+  const { installStrudelDevTools } = await import('./strudel/dev/strudelDevTools');
+  await installStrudelDevTools({ audio, deckA, deckB, strudelDeckA, strudelDeckB });
+}
+
 // == render =======================================================================================
 const root = createRoot(document.getElementById('root')!);
 root.render(
@@ -262,6 +302,8 @@ root.render(
       deckA,
       deckB,
       hostDeck: deckA,
+      strudelDeckA,
+      strudelDeckB,
       mixer,
       recorder,
       router,

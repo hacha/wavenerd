@@ -15,6 +15,9 @@ import { createErrorlayer } from '../codemirror/createErrorlayer';
 import { StuffContext } from '../StuffContext';
 import clsx from 'clsx';
 import styles from './DeckEditor.module.css';
+import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
+import { parseErrorLines } from '../utils/parseErrorLines';
+import { strudel } from '../codemirror/strudel';
 
 // == utils ========================================================================================
 /** Ref: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values */
@@ -65,6 +68,20 @@ function getKeyName(event: KeyboardEvent): string {
   return event.code;
 }
 
+function memoryPaths(mode: DeckSourceMode, memoryKey: string): { code: string; head: string } {
+  if (mode === 'strudel') {
+    return {
+      code: `memories/strudel/${memoryKey}.js`,
+      head: `memories/strudel/${memoryKey}_head.txt`,
+    };
+  }
+
+  return {
+    code: `memories/${memoryKey}.glsl`,
+    head: `memories/${memoryKey}_head.txt`,
+  };
+}
+
 function keyToLog(event: KeyboardEvent): string | null {
   if (keysIgnoreSet.has(event.key)) {
     return null;
@@ -82,6 +99,7 @@ function keyToLog(event: KeyboardEvent): string | null {
 
 // == component ====================================================================================
 export const DeckEditor = forwardRef(({
+  mode,
   codeAtom,
   logsAtom,
   errorAtom,
@@ -94,6 +112,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom,
   className,
 }: {
+  mode: DeckSourceMode;
   codeAtom: PrimitiveAtom<string>;
   logsAtom: PrimitiveAtom<[ id: number, text: string ][]>;
   errorAtom: PrimitiveAtom<string | null>;
@@ -110,7 +129,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
 }, ref: React.Ref<{ focusEditor: () => void }>) => {
-  const { storageManager } = useContext(StuffContext)!;
+  const { storageManager, strudelDeckA } = useContext(StuffContext)!;
 
   const refCodeMirror = useRef<ReactCodeMirrorRef>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -146,7 +165,8 @@ export const DeckEditor = forwardRef(({
   }, [logsAtom]));
 
   const handleLoadMemory = useCallback(async (memoryKey: string) => {
-    const codeFile = await storageManager.getFile(`memories/${memoryKey}.glsl`);
+    const paths = memoryPaths(mode, memoryKey);
+    const codeFile = await storageManager.getFile(paths.code);
     if (codeFile == null) {
       setMemoryUpdate((prev) => ({
         renderKey: (prev?.renderKey ?? 0) + 1,
@@ -164,7 +184,7 @@ export const DeckEditor = forwardRef(({
       ] },
     );
 
-    const headFile = await storageManager.getFile(`memories/${memoryKey}_head.txt`);
+    const headFile = await storageManager.getFile(paths.head);
     const head = parseInt(await headFile?.text() ?? '0');
     const scrollEffect = EditorView.scrollIntoView(head, { y: 'center' });
     refCodeMirror.current?.view?.dispatch(
@@ -177,19 +197,20 @@ export const DeckEditor = forwardRef(({
       memoryKey,
       status: 'loaded',
     }));
-  }, [setMemoryUpdate, storageManager]);
+  }, [mode, setMemoryUpdate, storageManager]);
 
   const handleSaveMemory = useCallback(async (memoryKey: string) => {
     const head = refCodeMirror.current?.view?.state.selection.main.head ?? 0;
-    await storageManager.save(`memories/${memoryKey}.glsl`, code);
-    await storageManager.save(`memories/${memoryKey}_head.txt`, head.toString());
+    const paths = memoryPaths(mode, memoryKey);
+    await storageManager.save(paths.code, code);
+    await storageManager.save(paths.head, head.toString());
 
     setMemoryUpdate((prev) => ({
       renderKey: (prev?.renderKey ?? 0) + 1,
       memoryKey,
       status: 'saved',
     }));
-  }, [code, setMemoryUpdate, storageManager]);
+  }, [code, mode, setMemoryUpdate, storageManager]);
 
   // -- keymap -------------------------------------------------------------------------------------
   const customKeymap: KeyBinding[] = useMemo(() => [
@@ -197,7 +218,10 @@ export const DeckEditor = forwardRef(({
       key: 'Mod-p',
       preventDefault: true,
       run: () => {
-        setLibraryOpening(true);
+        // the library has GLSL shaders only
+        if (mode === 'glsl') {
+          setLibraryOpening(true);
+        }
         return false;
       },
     },
@@ -237,23 +261,27 @@ export const DeckEditor = forwardRef(({
     ]),
     ...braceJumpKeymap({ onBraceJump }),
     ...defaultKeymap,
-  ], [onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory]);
+  ], [mode, onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory]);
 
   // -- error layer --------------------------------------------------------------------------------
   const error = useAtomValue(errorAtom);
-  const errorLines = useMemo(() => {
-    if (error == null) {
-      return [];
-    }
-
-    const lines: number[] = [];
-    for (const match of error.matchAll(/ERROR: (\d+):(\d+)/g)) {
-      lines.push(parseInt(match[2], 10));
-    }
-
-    return lines;
-  }, [error]);
+  const errorLines = useMemo(() => parseErrorLines(mode, error), [mode, error]);
   const errorlayer = useMemo(() => createErrorlayer(errorLines), [errorLines]);
+
+  // -- extensions ---------------------------------------------------------------------------------
+  // keep the language instance across renders, so its plugins and the completion popup survive typing
+  const strudelEngine = strudelDeckA.engine;
+  const language = useMemo(
+    () => mode === 'strudel' ? strudel(strudelEngine) : cpp(),
+    [mode, strudelEngine],
+  );
+
+  const extensions = useMemo(() => [
+    language,
+    Prec.highest(keymap.of(customKeymap)),
+    errorlayer,
+    backlayer,
+  ], [language, customKeymap, errorlayer]);
 
   // -- event handlers -----------------------------------------------------------------------------
   const handleKeyDown = useCallback(
@@ -365,12 +393,7 @@ export const DeckEditor = forwardRef(({
           ref={refCodeMirror}
           className="h-full"
           value={code}
-          extensions={[
-            cpp(),
-            Prec.highest(keymap.of(customKeymap)),
-            errorlayer,
-            backlayer,
-          ]}
+          extensions={extensions}
           theme={[
             theme.extensions,
             fontExtension,

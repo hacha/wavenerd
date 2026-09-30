@@ -1,44 +1,27 @@
-import { deckACueStatusAtom, deckAErrorAtom, deckBCueStatusAtom, deckBErrorAtom, deckBPMAtom, deckBeatsAtom, deckIsPlayingAtom, deckTimeAtom } from '../atoms/deck';
+import { type DeckAtoms, deckBPMAtom, deckBeatsAtom, deckIsPlayingAtom, deckTimeAtom } from '../atoms/deck';
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
 import { useEffect } from 'react';
 import { useSetAtom } from 'jotai';
+import { type CodeDeck, type CodeDeckEvents } from '../../../CodeDeck';
 
-function useDeckASubscribers(deckA: WavenerdDeck) {
-  const setDeckACueStatus = useSetAtom(deckACueStatusAtom);
-  const setDeckAError = useSetAtom(deckAErrorAtom);
+function useCodeDeckSubscribers(deck: CodeDeck, atoms: DeckAtoms) {
+  const setCueStatus = useSetAtom(atoms.cueStatus);
+  const setError = useSetAtom(atoms.error);
 
   useEffect(() => {
-    const handleChangeCueStatus = deckA.on('changeCueStatus', ({ cueStatus }) => {
-      setDeckACueStatus(cueStatus);
-    });
-
-    const handleError = deckA.on('error', ({ error }) => {
-      setDeckAError(error ?? null);
-    });
-
-    return () => {
-      deckA.off('changeCueStatus', handleChangeCueStatus);
-      deckA.off('error', handleError);
+    const handleChangeCueStatus = ({ cueStatus }: CodeDeckEvents['changeCueStatus']) => {
+      setCueStatus(cueStatus);
     };
-  });
-}
+    deck.on('changeCueStatus', handleChangeCueStatus);
 
-function useDeckBSubscribers(deckB: WavenerdDeck) {
-  const setDeckBCueStatus = useSetAtom(deckBCueStatusAtom);
-  const setDeckBError = useSetAtom(deckBErrorAtom);
-
-  useEffect(() => {
-    const handleChangeCueStatus = deckB.on('changeCueStatus', ({ cueStatus }) => {
-      setDeckBCueStatus(cueStatus);
-    });
-
-    const handleError = deckB.on('error', ({ error }) => {
-      setDeckBError(error ?? null);
-    });
+    const handleError = ({ error }: CodeDeckEvents['error']) => {
+      setError(error ?? null);
+    };
+    deck.on('error', handleError);
 
     return () => {
-      deckB.off('changeCueStatus', handleChangeCueStatus);
-      deckB.off('error', handleError);
+      deck.off('changeCueStatus', handleChangeCueStatus);
+      deck.off('error', handleError);
     };
   });
 }
@@ -82,10 +65,22 @@ function useDeckTransportSubscribers(hostDeck: WavenerdDeck) {
 
 export function useDeckSubscribers(
   hostDeck: WavenerdDeck,
-  deckA: WavenerdDeck,
-  deckB: WavenerdDeck,
+  decks: {
+    glslA: CodeDeck;
+    glslB: CodeDeck;
+    strudelA: CodeDeck;
+    strudelB: CodeDeck;
+  },
+  atoms: {
+    glslA: DeckAtoms;
+    glslB: DeckAtoms;
+    strudelA: DeckAtoms;
+    strudelB: DeckAtoms;
+  },
 ) {
-  useDeckASubscribers(deckA);
-  useDeckBSubscribers(deckB);
+  useCodeDeckSubscribers(decks.glslA, atoms.glslA);
+  useCodeDeckSubscribers(decks.glslB, atoms.glslB);
+  useCodeDeckSubscribers(decks.strudelA, atoms.strudelA);
+  useCodeDeckSubscribers(decks.strudelB, atoms.strudelB);
   useDeckTransportSubscribers(hostDeck);
 }

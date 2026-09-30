@@ -26,6 +26,19 @@ Since Wavenerd is designed for live performance, it has several features to make
 
 See [the help](guides/help.md), it should work as a manual and a tutorial.
 
+## Differences from upstream
+
+This is a fork of [0b5vr/wavenerd](https://github.com/0b5vr/wavenerd).
+
+- Strudel decks: each deck can be switched between GLSL and [Strudel](https://codeberg.org/uzu/strudel). A Strudel deck follows the deck's clock, BPM and transport.
+- `knob0` to `knob7` and MIDI control work in Strudel code, like in GLSL decks.
+- Editor support for Strudel: completion and mini-notation highlighting.
+- License: relicensed under AGPL-3.0-or-later, since Strudel and superdough are AGPL-3.0-or-later (see License below).
+
+To run it locally, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## License
 
-[MIT](LICENSE)
+This fork is licensed under [AGPL-3.0-or-later](LICENSE), since it depends on [Strudel](https://codeberg.org/uzu/strudel) and superdough (AGPL-3.0-or-later).
+
+The code originally written for [0b5vr/wavenerd](https://github.com/0b5vr/wavenerd) is also available under the [MIT License](LICENSE-MIT).
