@@ -7,10 +7,22 @@ import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
 import { type StrudelEngine } from './StrudelEngine';
 
-const { getTrigger, silence } = coreModule;
+const { getTrigger, ref, silence } = coreModule;
 const { setSuperdoughAudioController, webaudioOutput, webaudioRepl } = webaudioModule;
 
 type Pattern = any;
+
+/** Same as the knobs of GLSL decks. */
+export const STRUDEL_KNOB_NAMES = [
+  'knob0',
+  'knob1',
+  'knob2',
+  'knob3',
+  'knob4',
+  'knob5',
+  'knob6',
+  'knob7',
+] as const;
 
 /**
  * A deck that plays Strudel code. Behaves like a `WavenerdDeck` from the deck UI.
@@ -25,6 +37,12 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
   private readonly __repl: any;
   private __staged: Pattern | null = null;
   private __lastEvalError: unknown = null;
+  private readonly __params = new Map<string, number>();
+
+  /**
+   * `knob0` .. `knob7` for Strudel code. Read at query time, so knob changes are heard after the lookahead.
+   */
+  private readonly __knobs: Record<string, Pattern>;
 
   private __cueStatus: CueStatus = 'none';
   public get cueStatus(): CueStatus {
@@ -55,6 +73,10 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     const { audio, clock } = engine;
 
     this.output = audio.createGain();
+
+    this.__knobs = Object.fromEntries(STRUDEL_KNOB_NAMES.map((name) => (
+      [name, ref(() => this.__params.get(name) ?? 0.0)]
+    )));
 
     const controller = createDeckOutputController(audio, this.output);
 
@@ -98,6 +120,9 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       pattern = silence;
     } else {
       pattern = await this.engine.enqueueEvaluation(async () => {
+        // globals are shared by every deck. assign ours right before evaluating
+        Object.assign(globalThis, this.__knobs);
+
         this.__lastEvalError = null;
         const result = await this.__repl.evaluate(code, false);
         error = this.__lastEvalError;
@@ -140,6 +165,13 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     this.__scheduler.setPattern(pattern);
     this.__staged = null;
     this.__setCueStatus('none');
+  }
+
+  /**
+   * Set the value of a knob (`knob0` .. `knob7`), usually from MIDI.
+   */
+  public setParam(name: string, value: number): void {
+    this.__params.set(name, value);
   }
 
   private __setCueStatus(cueStatus: CueStatus): void {

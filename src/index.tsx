@@ -207,6 +207,13 @@ function applyMidiParam({ paramKey, value }: { paramKey: string; value: number }
   if (paramKey === '/deck_b/knob5') { deckB.setParam('knob5', value); }
   if (paramKey === '/deck_b/knob6') { deckB.setParam('knob6', value); }
   if (paramKey === '/deck_b/knob7') { deckB.setParam('knob7', value); }
+
+  // Strudel decks share the knobs of their slot, whichever mode is active
+  const strudelKnob = /^\/deck_([ab])\/(knob[0-7])$/.exec(paramKey);
+  if (strudelKnob != null) {
+    const strudelDeck = strudelKnob[1] === 'a' ? strudelDeckA : strudelDeckB;
+    strudelDeck.setParam(strudelKnob[2], value);
+  }
 }
 
 MIDIMAN.on('initStorage', () => {

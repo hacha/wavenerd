@@ -1,6 +1,6 @@
 # Strudel 統合 設計（v2 最小構成）
 
-最終更新: 2026-09-30（M1）
+最終更新: 2026-09-30（M3）
 
 v1（`archive/strudel-v1`）は参考のみ。コードは移植せず、この設計に沿って作り直す。
 
@@ -87,19 +87,19 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 ### 5. 初期化（`src/strudel/StrudelEngine.ts`）
 
 - `setAudioContext(audio)` で、wavenerd と同じ AudioContext を使う。
-- `evalScope(controls, mini, tonal, webaudio, { knob0..knob7 })` を実行する。
+- `evalScope(core, mini, tonal, webaudio)` を実行する。knob は評価ごとに注入する（6 章）。
 - `prebake` と同じ音源をロードする（`src/strudel/prebake.ts`、strudel.cc から移植）。評価の準備（`ready`）はロード完了を待たない。シンセ、ZZFX、soundfonts、`strudel.b-cdn.net` の piano / VCSL / drum machines / Dirt-Samples 抜粋など。
 - `repl.evaluate()` は evalScope のグローバルを書き換えるので、全デッキ共通の Promise キューで直列化する。
 - 各 repl には異なる `id` を渡す。
 
 ### 6. knob（MIDI 連携）
 
-- `knob0`〜`knob7` は、デッキごとの値ストアを読む `ref()` パターンとして提供する。
+- `knob0`〜`knob7` は、デッキごとの値ストアを読む `ref()` パターンとして提供する（Strudel の `slider` / `midin` と同じ仕組み）。値は 0〜1、未設定なら 0。
   - 例：`s("bd*4").lpf(knob0.range(200, 8000))`
-- 評価時にはどのデッキのコードかが分かるので、そのデッキ用の knob を注入する。
-  - evalScope はグローバルなので、評価キューの中でデッキごとに差し替えてから評価する。
-- 既存の `MIDIMAN` → `deckX.setParam('knobN')` の経路で、Strudel 側のストアも更新する。
+- evalScope はグローバルなので、評価キューの中で `repl.evaluate()` の直前に、そのデッキの knob を `globalThis` に代入する。キューの外で代入すると、先に並んでいる他デッキの評価と入れ替わるおそれがある。
+- `applyMidiParam` で `/deck_a/knobN` / `/deck_b/knobN` を受けたら、GLSL デッキに加えて同じスロットの `StrudelDeck.setParam()` も呼ぶ。モードに関係なく両方更新するので、起動時の MIDIMAN の値の再生で初期値も入り、モードを切り替えても knob の位置が揃う。
 - 反映遅延は先読み分（約 0.1〜0.2 秒）。
+- 制限：評価時ではなくクエリ時に `knob0` というグローバルを参照するコード（`.fmap(() => knob0 …)` の中や、別デッキで `register` した関数の中など）は、最後に評価したデッキの knob を読む。まれなので対処しない。必要になったら、ユーザーコードの先頭で knob を分割代入してレキシカルに束縛する方法がある（エラー位置がずれる・`knob0` の再宣言と衝突する、という欠点がある）。
 
 ### 7. UI
 
@@ -171,6 +171,13 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - `applyCue` 後に状態が `none` に戻るのは、実際に鳴る瞬間ではなく発音予定を出した瞬間（先読み分の約 0.1〜0.2 秒早い）。
 - Strudel コード内の `setcps` / `setcpm` は効かない（テンポは BeatManager に従うため）。`cpm()` は repl 内部の Cyclist の cps（0.5）を基準に計算するので、1 小節 = 1 cycle とずれる可能性がある。
 - tr909 などのサンプルはピークが 1.0 を超えることがある。音量はミキサーのゲインで調整する。
+
+## M3 結果（2026-09-30）
+
+| 確認項目 | 結果 |
+|---|---|
+| デッキ間の分離 | `strudelDev.knobCheck()`：同じコード `s("bd*4").lpf(knob0.range(200, 8000))` を A / B で同時にコンパイルし、A の knob0=1・B の knob0=0 で A は 8000、B は 200。A だけ 0.5 にすると A は 4100、B は 200 のまま |
+| 初期値 | リロード後、MIDIMAN に保存されている `/deck_a/knob0` の値が Strudel デッキ A にも入る |
 
 ## 未決事項・リスク
 

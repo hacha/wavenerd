@@ -7,6 +7,12 @@
  * await strudelDev.setupTimingCheck(); // then play
  * strudelDev.timingStats(); // ms, Strudel - GLSL
  * ```
+ *
+ * Knob isolation check: both decks compile the same code that reads `knob0`.
+ *
+ * ```js
+ * await strudelDev.knobCheck(); // passes when each deck reads its own knob0
+ * ```
  */
 
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
@@ -19,6 +25,8 @@ export const CLICK_GLSL = `vec2 mainAudio(vec4 time) {
 `;
 
 export const CLICK_STRUDEL = 'note("c3").s("square").attack(0).decay(0.05).sustain(0)';
+
+export const CODE_KNOB = 's("bd*4").lpf(knob0.range(200, 8000))';
 
 export async function installStrudelDevTools({
   audio,
@@ -98,6 +106,33 @@ export async function installStrudelDevTools({
     clearOnsets();
   }
 
+  /** Cutoffs of the cued pattern of a Strudel deck in the first cycle. Reads a private field. */
+  function stagedCutoffs(deck: StrudelDeck): number[] {
+    const staged = (deck as any).__staged;
+    return staged.queryArc(0, 1).map((hap: any) => hap.value.cutoff);
+  }
+
+  /** Compile the same knob code on both Strudel decks at once and check each reads its own knob0. */
+  async function knobCheck() {
+    await Promise.all([
+      strudelDeckA.compile(CODE_KNOB),
+      strudelDeckB.compile(CODE_KNOB),
+    ]);
+
+    strudelDeckA.setParam('knob0', 1.0);
+    strudelDeckB.setParam('knob0', 0.0);
+    const first = { a: stagedCutoffs(strudelDeckA), b: stagedCutoffs(strudelDeckB) };
+
+    strudelDeckA.setParam('knob0', 0.5);
+    const second = { a: stagedCutoffs(strudelDeckA), b: stagedCutoffs(strudelDeckB) };
+
+    const every = (values: number[], expected: number) => values.every((v) => Math.abs(v - expected) < 1e-6);
+    const pass = every(first.a, 8000) && every(first.b, 200)
+      && every(second.a, 4100) && every(second.b, 200);
+
+    return { pass, first, second };
+  }
+
   const handle = {
     audio,
     deckA,
@@ -109,6 +144,7 @@ export async function installStrudelDevTools({
     clearOnsets,
     timingStats,
     setupTimingCheck,
+    knobCheck,
     CLICK_GLSL,
     CLICK_STRUDEL,
   };
