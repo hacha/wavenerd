@@ -211,6 +211,8 @@ async function handleUpdateStorage(path: string) {
     if (buffer == null) {
       console.error(`Failed to load sample: ${path}`);
     } else {
+      // before the GLSL deck, in case it detaches the buffer by decoding it
+      strudelEngine.userSamples.set(name, buffer);
       deckA.loadSample(name, buffer);
     }
   } else if (path.startsWith('wavetables/')) {
@@ -237,6 +239,7 @@ function handleDeleteStorage(path: string) {
 
   if (path.startsWith('samples/')) {
     deckA.deleteSample(name);
+    strudelEngine.userSamples.delete(name);
   } else if (path.startsWith('wavetables/')) {
     deckA.deleteWavetable(name);
   } else if (path.startsWith('images/')) {
