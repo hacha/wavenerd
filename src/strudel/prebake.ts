@@ -12,35 +12,57 @@ import { aliasBank, registerSynthSounds, registerZZFXSounds, samples } from '@st
 
 const baseCDN = 'https://strudel.b-cdn.net';
 
+interface SoundSource {
+  /** Shown to the user when the source fails to load. */
+  name: string;
+  load: () => Promise<unknown>;
+}
+
 /**
- * Load the same sounds as the strudel.cc REPL.
- * Samples are fetched from the Strudel CDN.
+ * The same sounds as the strudel.cc REPL.
+ * The lists of the samples are fetched from the Strudel CDN here. The audio files are fetched when they are played.
  */
-export async function prebake() {
+const sources: SoundSource[] = [
+  { name: 'synths', load: async () => registerSynthSounds() },
+  { name: 'zzfx', load: async () => registerZZFXSounds() },
+  {
+    name: 'soundfonts',
+    load: () => import('@strudel/soundfonts').then(({ registerSoundfonts }) => registerSoundfonts()),
+  },
   // https://archive.org/details/SalamanderGrandPianoV3
   // License: CC-by http://creativecommons.org/licenses/by/3.0/ Author: Alexander Holm
-  await Promise.all([
-    registerSynthSounds(),
-    registerZZFXSounds(),
-    import('@strudel/soundfonts').then(({ registerSoundfonts }) => registerSoundfonts()),
-    samples(`${baseCDN}/piano.json`, `${baseCDN}/piano/`, { prebake: true }),
-    // https://github.com/sgossner/VCSL/
-    // https://api.github.com/repositories/126427031/contents/
-    // LICENSE: CC0 general-purpose
-    samples(`${baseCDN}/vcsl.json`, `${baseCDN}/VCSL/`, { prebake: true }),
-    samples(`${baseCDN}/tidal-drum-machines.json`, `${baseCDN}/tidal-drum-machines/machines/`, {
+  { name: 'piano', load: () => samples(`${baseCDN}/piano.json`, `${baseCDN}/piano/`, { prebake: true }) },
+  // https://github.com/sgossner/VCSL/
+  // https://api.github.com/repositories/126427031/contents/
+  // LICENSE: CC0 general-purpose
+  { name: 'vcsl', load: () => samples(`${baseCDN}/vcsl.json`, `${baseCDN}/VCSL/`, { prebake: true }) },
+  {
+    name: 'tidal-drum-machines',
+    load: () => samples(`${baseCDN}/tidal-drum-machines.json`, `${baseCDN}/tidal-drum-machines/machines/`, {
       prebake: true,
       tag: 'drum-machines',
     }),
-    samples(`${baseCDN}/uzu-drumkit.json`, `${baseCDN}/uzu-drumkit/`, {
+  },
+  {
+    name: 'uzu-drumkit',
+    load: () => samples(`${baseCDN}/uzu-drumkit.json`, `${baseCDN}/uzu-drumkit/`, {
       prebake: true,
       tag: 'drum-machines',
     }),
-    samples(`${baseCDN}/uzu-wavetables.json`, `${baseCDN}/uzu-wavetables/`, {
+  },
+  {
+    name: 'uzu-wavetables',
+    load: () => samples(`${baseCDN}/uzu-wavetables.json`, `${baseCDN}/uzu-wavetables/`, {
       prebake: true,
     }),
-    samples(`${baseCDN}/mridangam.json`, `${baseCDN}/mrid/`, { prebake: true, tag: 'drum-machines' }),
-    samples(
+  },
+  {
+    name: 'mridangam',
+    load: () => samples(`${baseCDN}/mridangam.json`, `${baseCDN}/mrid/`, { prebake: true, tag: 'drum-machines' }),
+  },
+  {
+    name: 'dirt-samples',
+    load: () => samples(
       {
         casio: ['casio/high.wav', 'casio/low.wav', 'casio/noise.wav'],
         crow: ['crow/000_crow.wav', 'crow/001_crow2.wav', 'crow/002_crow3.wav', 'crow/003_crow4.wav'],
@@ -154,9 +176,43 @@ export async function prebake() {
         prebake: true,
       },
     ),
-  ]);
+  },
+];
 
-  aliasBank(`${baseCDN}/tidal-drum-machines-alias.json`);
+/**
+ * Aliases of the drum machines, such as `bank("tr909")`.
+ * Only the sounds that exist at the time get their aliases, so it is loaded after the others, every time.
+ */
+const aliases: SoundSource = {
+  name: 'drum machine aliases',
+  load: () => aliasBank(`${baseCDN}/tidal-drum-machines-alias.json`),
+};
+
+async function loadAll(targets: SoundSource[]): Promise<SoundSource[]> {
+  const results = await Promise.allSettled(targets.map((source) => source.load()));
+
+  return targets.filter((source, i) => {
+    const result = results[i];
+    if (result.status === 'fulfilled') { return false; }
+
+    console.warn(`[strudel] failed to load sounds: ${source.name}`, result.reason);
+    return true;
+  });
+}
+
+/**
+ * Load the sounds. One source that fails does not stop the others.
+ *
+ * @param only Names of the sources to load. Every source if omitted.
+ * @returns Names of the sources that failed. Give them to `only` to load them again.
+ */
+export async function prebake(only?: string[]): Promise<string[]> {
+  const targets = sources.filter((source) => only?.includes(source.name) ?? true);
+
+  const failed = await loadAll(targets);
+  failed.push(...await loadAll([aliases]));
+
+  return failed.map((source) => source.name);
 }
 
 const maxPan = noteToMidi('C8');

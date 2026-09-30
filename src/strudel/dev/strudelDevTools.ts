@@ -20,11 +20,19 @@
  * await strudelDev.deckA.compile(strudelDev.heavyGlsl(1000)); strudelDev.deckA.applyCueImmediately();
  * await strudelDev.loadCheck(10); // update() times in ms, underruns, scheduler tick gaps, long tasks
  * ```
+ *
+ * Offline check: fail the requests for sounds. Add `&strudelOffline` to the URL to start offline.
+ *
+ * ```js
+ * strudelDev.offlineSwitch.offline = true; // or false
+ * strudelDev.offlineSwitch.blocked; // URLs that failed
+ * ```
  */
 
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
 import { type DeckSourceSwitch } from '../../audio/DeckSourceSwitch';
 import { type StrudelDeck } from '../StrudelDeck';
+import { type StrudelOfflineSwitch } from './offlineSwitch';
 import onsetProbeProcessorUrl from './OnsetProbeProcessor.js?url';
 
 export const CLICK_GLSL = `vec2 mainAudio(vec4 time) {
@@ -62,6 +70,7 @@ export async function installStrudelDevTools({
   strudelDeckB,
   sourceSwitchA,
   sourceSwitchB,
+  offlineSwitch,
 }: {
   audio: AudioContext;
   deckA: WavenerdDeck;
@@ -70,6 +79,7 @@ export async function installStrudelDevTools({
   strudelDeckB: StrudelDeck;
   sourceSwitchA: DeckSourceSwitch;
   sourceSwitchB: DeckSourceSwitch;
+  offlineSwitch: StrudelOfflineSwitch;
 }) {
   await audio.audioWorklet.addModule(onsetProbeProcessorUrl);
 
@@ -256,6 +266,7 @@ export async function installStrudelDevTools({
     strudelDeckB,
     sourceSwitchA,
     sourceSwitchB,
+    offlineSwitch,
     onsets,
     probe,
     clearOnsets,
