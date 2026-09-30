@@ -12,7 +12,7 @@ import IconPlay from '~icons/mdi/play';
 import IconSoundsFailed from '~icons/mdi/cloud-off-outline';
 import { useSettings } from '../stores/hooks/useSettings';
 import { midiParamsAtom } from '../stores/atoms/midi';
-import { strudelFailedSoundsAtom } from '../stores/atoms/strudel';
+import { strudelFailedFilesAtom, strudelFailedSoundsAtom } from '../stores/atoms/strudel';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { parseErrorLines } from '../utils/parseErrorLines';
 
@@ -192,13 +192,24 @@ function Message({
 
 function FailedSounds() {
   const failedSounds = useAtomValue(strudelFailedSoundsAtom);
+  const failedFiles = useAtomValue(strudelFailedFilesAtom);
 
-  if (failedSounds.length === 0) { return null; }
+  if (failedSounds.length === 0 && failedFiles.length === 0) { return null; }
+
+  const lines: string[] = [];
+  if (failedSounds.length > 0) {
+    lines.push(`Failed to load sounds: ${failedSounds.join(', ')}`);
+    lines.push('They are loaded again when the network is back');
+  }
+  if (failedFiles.length > 0) {
+    lines.push(`Failed to load while playing: ${failedFiles.join(', ')}`);
+    lines.push('They need a reload');
+  }
 
   return (
     <IconSoundsFailed
       className={`${iconCls} text-error`}
-      data-stalker={`Failed to load sounds: ${failedSounds.join(', ')}\nThey are loaded again when the network is back. Sounds that failed while playing need a reload`}
+      data-stalker={lines.join('\n')}
     />
   );
 }

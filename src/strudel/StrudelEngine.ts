@@ -31,6 +31,7 @@ const { loadWorklets, setAudioContext } = webaudioModule;
 
 export interface StrudelEngineEvents {
   changeFailedSounds: { failedSounds: string[] };
+  changeFailedFiles: { failedFiles: string[] };
 }
 
 /**
@@ -53,16 +54,25 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
   private __evalQueue: Promise<unknown> = Promise.resolve();
   private __completionWords: StrudelCompletionWords = { globals: [], methods: [] };
   private __failedSounds: string[] = [];
+  private __failedFiles: string[] = [];
   private __isLoadingSounds = false;
   private __isRetryPending = false;
 
   /**
    * Names of the sound sources that could not be loaded, usually because the network is down.
    * They are loaded again when the browser goes online.
-   * Audio files that fail when they are played are not listed here.
+   * Audio files that fail when they are played are in {@link failedFiles}.
    */
   public get failedSounds(): string[] {
     return this.__failedSounds;
+  }
+
+  /**
+   * Sounds whose audio file failed to load while playing, such as `bd:3`.
+   * superdough keeps the failure, so they stay silent until the page is reloaded.
+   */
+  public get failedFiles(): string[] {
+    return this.__failedFiles;
   }
 
   /**
@@ -96,6 +106,16 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
     if (this.__failedSounds.length === 0) { return; }
 
     await this.__loadSounds(this.__failedSounds);
+  }
+
+  /**
+   * Record a sound whose audio file failed to load while playing. Does nothing if it is already recorded.
+   */
+  public addFailedFile(name: string): void {
+    if (this.__failedFiles.includes(name)) { return; }
+
+    this.__failedFiles = [...this.__failedFiles, name];
+    this.__emit('changeFailedFiles', { failedFiles: this.__failedFiles });
   }
 
   /**

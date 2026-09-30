@@ -138,7 +138,14 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       // superdough takes the controller synchronously, before its first await.
       // `patches/superdough@1.3.0.patch` makes bus modulation (`bmod`) use it too
       setSuperdoughAudioController(controller);
-      return webaudioOutput(hap, deadline, duration, cps, t);
+      const name = soundName(hap.value);
+      return webaudioOutput(hap, deadline, duration, cps, t).catch((error: unknown) => {
+        if (isLoadError(error)) {
+          engine.addFailedFile(name);
+        }
+        // getTrigger logs it
+        throw error;
+      });
     };
 
     const trigger = getTrigger({ defaultOutput, getTime: () => audio.currentTime });
@@ -282,6 +289,27 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     this.__cueStatus = cueStatus;
     this.__emit('changeCueStatus', { cueStatus });
   }
+}
+
+/**
+ * The name of the sound of a hap as it is written in the code, such as `tr909_bd:3`.
+ */
+function soundName(value: unknown): string {
+  if (value == null || typeof value !== 'object') { return String(value); }
+
+  const { s, bank, n } = value as { s?: unknown; bank?: unknown; n?: unknown };
+  const sound = bank != null ? `${bank}_${s}` : String(s);
+  return n != null ? `${sound}:${n}` : sound;
+}
+
+/**
+ * Whether an error from superdough means that an audio file could not be loaded.
+ * `TypeError` is a failed fetch (Chrome: `Failed to fetch`); `EncodingError` is a file that is not audio, such as an error page.
+ * superdough keeps both until the page is reloaded.
+ */
+function isLoadError(error: unknown): boolean {
+  return (error instanceof TypeError && error.message === 'Failed to fetch')
+    || (error instanceof DOMException && error.name === 'EncodingError');
 }
 
 /**
