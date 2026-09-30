@@ -21,7 +21,8 @@ import { StorageManager } from './StorageManager';
 import { loadFileAsImage } from './utils/loadFileAsImage';
 import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
-import { DeckSourceSwitch } from './audio/DeckSourceSwitch';
+import { DeckRenderGate } from './audio/DeckRenderGate';
+import { DeckSourceSwitch, type DeckSourceMode } from './audio/DeckSourceSwitch';
 import { TickNode } from './audio/TickNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
@@ -69,6 +70,56 @@ const sourceSwitchB = new DeckSourceSwitch(audio);
 deckB.node.connect(sourceSwitchB.inputGlsl);
 strudelDeckB.output.connect(sourceSwitchB.inputStrudel);
 sourceSwitchB.output.connect(mixer.inputB);
+
+interface DeckSlot {
+  renderGate: DeckRenderGate;
+  sourceSwitch: DeckSourceSwitch;
+  strudelDeck: StrudelDeck;
+  strudelStopTimer: ReturnType<typeof setTimeout> | null;
+}
+
+const slotA: DeckSlot = {
+  renderGate: new DeckRenderGate(deckA),
+  sourceSwitch: sourceSwitchA,
+  strudelDeck: strudelDeckA,
+  strudelStopTimer: null,
+};
+const slotB: DeckSlot = {
+  renderGate: new DeckRenderGate(deckB),
+  sourceSwitch: sourceSwitchB,
+  strudelDeck: strudelDeckB,
+  strudelStopTimer: null,
+};
+
+/**
+ * The GLSL deck keeps updating in the Strudel mode, since its BeatManager is the clock.
+ * Only its rendering stops.
+ */
+function setDeckMode(slot: DeckSlot, mode: DeckSourceMode) {
+  const { renderGate, sourceSwitch, strudelDeck } = slot;
+
+  if (slot.strudelStopTimer != null) {
+    clearTimeout(slot.strudelStopTimer);
+    slot.strudelStopTimer = null;
+  }
+
+  if (mode === 'strudel') {
+    renderGate.disable();
+    sourceSwitch.setMode('strudel');
+    strudelDeck.active = true;
+    return;
+  }
+
+  // The GLSL deck has silence buffered. Keep Strudel playing until the rendered sound comes out.
+  renderGate.enable((time) => {
+    sourceSwitch.setMode('glsl', time);
+
+    slot.strudelStopTimer = setTimeout(() => {
+      slot.strudelStopTimer = null;
+      strudelDeck.active = false;
+    }, Math.max(0.0, time - audio.currentTime) * 1000.0);
+  });
+}
 
 const reverb = new Reverb(audio);
 mixer.output.connect(reverb.input);
@@ -266,15 +317,12 @@ function applySettings(settings: Partial<Settings>) {
     deckB.latencyBlocks = settings.latencyBlocks;
   }
 
-  // the GLSL deck keeps running in the Strudel mode, since its BeatManager is the clock
   if (settings.deckAMode != null) {
-    sourceSwitchA.mode = settings.deckAMode;
-    strudelDeckA.active = settings.deckAMode === 'strudel';
+    setDeckMode(slotA, settings.deckAMode);
   }
 
   if (settings.deckBMode != null) {
-    sourceSwitchB.mode = settings.deckBMode;
-    strudelDeckB.active = settings.deckBMode === 'strudel';
+    setDeckMode(slotB, settings.deckBMode);
   }
 
   if (settings.masterDCRemoval != null) {
@@ -316,7 +364,15 @@ document.addEventListener('keydown', (event) => {
 // == strudel dev tools ============================================================================
 if (new URLSearchParams(location.search).has('strudelDev')) {
   const { installStrudelDevTools } = await import('./strudel/dev/strudelDevTools');
-  await installStrudelDevTools({ audio, deckA, deckB, strudelDeckA, strudelDeckB });
+  await installStrudelDevTools({
+    audio,
+    deckA,
+    deckB,
+    strudelDeckA,
+    strudelDeckB,
+    sourceSwitchA,
+    sourceSwitchB,
+  });
 }
 
 // == render =======================================================================================

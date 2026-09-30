@@ -14,7 +14,7 @@
  * await strudelDev.knobCheck(); // passes when each deck reads its own knob0
  * ```
  *
- * Load check: cost of the GLSL deck that keeps running behind a Strudel deck.
+ * Load check: cost of the GLSL decks, including the one behind a Strudel deck.
  *
  * ```js
  * await strudelDev.deckA.compile(strudelDev.heavyGlsl(1000)); strudelDev.deckA.applyCueImmediately();
@@ -23,6 +23,7 @@
  */
 
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
+import { type DeckSourceSwitch } from '../../audio/DeckSourceSwitch';
 import { type StrudelDeck } from '../StrudelDeck';
 import onsetProbeProcessorUrl from './OnsetProbeProcessor.js?url';
 
@@ -59,12 +60,16 @@ export async function installStrudelDevTools({
   deckB,
   strudelDeckA,
   strudelDeckB,
+  sourceSwitchA,
+  sourceSwitchB,
 }: {
   audio: AudioContext;
   deckA: WavenerdDeck;
   deckB: WavenerdDeck;
   strudelDeckA: StrudelDeck;
   strudelDeckB: StrudelDeck;
+  sourceSwitchA: DeckSourceSwitch;
+  sourceSwitchB: DeckSourceSwitch;
 }) {
   await audio.audioWorklet.addModule(onsetProbeProcessorUrl);
 
@@ -249,6 +254,8 @@ export async function installStrudelDevTools({
     deckB,
     strudelDeckA,
     strudelDeckB,
+    sourceSwitchA,
+    sourceSwitchB,
     onsets,
     probe,
     clearOnsets,
