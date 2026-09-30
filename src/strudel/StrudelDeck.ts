@@ -54,6 +54,13 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     }
   }
 
+  /**
+   * Schedule now if the timer of the scheduler is late. Call it from a clock that is not throttled.
+   */
+  public poke(): void {
+    this.__scheduler.poke();
+  }
+
   public constructor({ engine, id }: { engine: StrudelEngine; id: string }) {
     super();
 
