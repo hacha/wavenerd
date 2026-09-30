@@ -12,6 +12,26 @@ const { getTrigger, ref, silence } = coreModule;
 const { setSuperdoughAudioController, webaudioOutput, webaudioRepl } = webaudioModule;
 
 type Pattern = any;
+type Hap = any;
+
+/**
+ * Code that compiled successfully, with the places of its mini-notation atoms.
+ */
+export interface StrudelCompiledCode {
+  /** Grows with each compile. */
+  id: number;
+  code: string;
+
+  /** `[from, to]` offsets in {@link code}. */
+  miniLocations: [number, number][];
+}
+
+/**
+ * Identifies a mini-notation atom of a compiled code, as listed by {@link StrudelDeck.collectSoundingLocations}.
+ */
+export function strudelLocationKey(codeId: number, from: number, to: number): string {
+  return `${codeId}:${from}:${to}`;
+}
 
 /**
  * A deck that plays Strudel code. Behaves like a `WavenerdDeck` from the deck UI.
@@ -24,8 +44,13 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
   private readonly __scheduler: StrudelScheduler;
   private readonly __repl: any;
-  private __staged: Pattern | null = null;
+  private __staged: { pattern: Pattern; codeId: number } | null = null;
   private __lastEvalError: unknown = null;
+  private __lastEvalMiniLocations: [number, number][] = [];
+  private __compiledCode: StrudelCompiledCode | null = null;
+  private __lastCodeId = 0;
+  private __activeCodeId = 0;
+  private __sounding: { begin: number; end: number; keys: string[] }[] = [];
   private readonly __params = new Map<string, number>();
 
   /**
@@ -51,6 +76,39 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       this.__scheduler.start();
     } else {
       this.__scheduler.stop();
+      this.__sounding = [];
+    }
+  }
+
+  /**
+   * The latest code that compiled successfully. It might not be applied yet.
+   */
+  public get compiledCode(): StrudelCompiledCode | null {
+    return this.__compiledCode;
+  }
+
+  /**
+   * The {@link StrudelCompiledCode.id} of the code that is playing.
+   */
+  public get activeCodeId(): number {
+    return this.__activeCodeId;
+  }
+
+  /**
+   * Add the {@link strudelLocationKey} of the mini-notation atoms that are heard now to `keys`.
+   */
+  public collectSoundingLocations(keys: Set<string>): void {
+    if (this.__sounding.length === 0) { return; }
+
+    const { audio } = this.engine;
+    const time = audio.currentTime - (audio.outputLatency || 0.0);
+
+    this.__sounding = this.__sounding.filter((sounding) => time < sounding.end);
+
+    for (const sounding of this.__sounding) {
+      if (sounding.begin <= time) {
+        for (const key of sounding.keys) { keys.add(key); }
+      }
     }
   }
 
@@ -83,10 +141,15 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       return webaudioOutput(hap, deadline, duration, cps, t);
     };
 
+    const trigger = getTrigger({ defaultOutput, getTime: () => audio.currentTime });
+
     this.__scheduler = new StrudelScheduler({
       audio,
       clock,
-      onTrigger: getTrigger({ defaultOutput, getTime: () => audio.currentTime }),
+      onTrigger: (hap, deadline, duration, cps, targetTime) => {
+        this.__addSounding(hap, targetTime, duration);
+        return trigger(hap, deadline, duration, cps, targetTime);
+      },
       onError: (error) => {
         this.__emit('error', { error: error instanceof Error ? error.message : String(error) });
       },
@@ -99,12 +162,16 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       onEvalError: (error: unknown) => {
         this.__lastEvalError = error;
       },
+      afterEval: ({ meta }: { meta?: { miniLocations?: [number, number][] } }) => {
+        this.__lastEvalMiniLocations = meta?.miniLocations ?? [];
+      },
     });
 
     // same as WavenerdDeck
     clock.hostDeck.on('rewind', () => {
       this.applyCueImmediately();
       controller.reset();
+      this.__sounding = [];
     });
 
     // Haps within the lookahead are already sent to superdough and cannot be cancelled.
@@ -112,6 +179,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     // The scheduler queries the same range again on resume, into new orbits.
     clock.hostDeck.on('pause', () => {
       controller.reset();
+      this.__sounding = [];
     });
   }
 
@@ -122,6 +190,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
     let pattern: Pattern | null;
     let error: unknown = null;
+    let miniLocations: [number, number][] = [];
 
     if (code.trim() === '') {
       // repl.evaluate throws on empty code
@@ -132,8 +201,10 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
         Object.assign(globalThis, this.__knobs);
 
         this.__lastEvalError = null;
+        this.__lastEvalMiniLocations = [];
         const result = await this.__repl.evaluate(code, false);
         error = this.__lastEvalError;
+        miniLocations = this.__lastEvalMiniLocations;
         return result ?? null;
       });
     }
@@ -145,7 +216,9 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       return;
     }
 
-    this.__staged = pattern;
+    const codeId = ++this.__lastCodeId;
+    this.__compiledCode = { id: codeId, code, miniLocations };
+    this.__staged = { pattern, codeId };
     this.__setCueStatus('ready');
     this.__emit('error', { error: null });
   }
@@ -157,21 +230,23 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
     // same as WavenerdDeck: the swap takes the latest cue, even if it is recompiled while applying
     this.__scheduler.setPatternAtNextCycle(() => {
-      const pattern = this.__staged;
-      if (pattern == null) { return null; }
+      const staged = this.__staged;
+      if (staged == null) { return null; }
 
       this.__staged = null;
+      this.__activeCodeId = staged.codeId;
       this.__setCueStatus('none');
-      return pattern;
+      return staged.pattern;
     });
   }
 
   public applyCueImmediately(): void {
-    const pattern = this.__staged;
-    if (pattern == null) { return; }
+    const staged = this.__staged;
+    if (staged == null) { return; }
 
-    this.__scheduler.setPattern(pattern);
+    this.__scheduler.setPattern(staged.pattern);
     this.__staged = null;
+    this.__activeCodeId = staged.codeId;
     this.__setCueStatus('none');
   }
 
@@ -180,6 +255,27 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
    */
   public setParam(name: string, value: number): void {
     this.__params.set(name, value);
+  }
+
+  /**
+   * Remember when the hap is heard, for {@link collectSoundingLocations}.
+   * Called for the haps of the active code only, since the scheduler swaps the pattern between its queries.
+   */
+  private __addSounding(hap: Hap, begin: number, duration: number): void {
+    const locations: { start: number; end: number }[] | undefined = hap.context?.locations;
+    if (locations == null || locations.length === 0) { return; }
+
+    // nobody collects them, e.g. the editor is not mounted
+    if (this.__sounding.length >= 1024) {
+      this.__sounding = this.__sounding.slice(512);
+    }
+
+    const codeId = this.__activeCodeId;
+    this.__sounding.push({
+      begin,
+      end: begin + duration,
+      keys: locations.map(({ start, end }) => strudelLocationKey(codeId, start, end)),
+    });
   }
 
   private __setCueStatus(cueStatus: CueStatus): void {

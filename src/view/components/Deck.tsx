@@ -162,6 +162,7 @@ export const Deck = forwardRef(({
       />
       <DeckEditor
         ref={refEditor}
+        deck={deck}
         mode={mode}
         className="absolute left-0 top-0 w-full h-[calc(100%-24px)]"
         codeAtom={codeAtom}

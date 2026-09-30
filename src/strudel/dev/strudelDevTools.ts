@@ -27,10 +27,18 @@
  * strudelDev.offlineSwitch.offline = true; // or false
  * strudelDev.offlineSwitch.blocked; // URLs that failed
  * ```
+ *
+ * Pattern highlight check in a hidden tab, where `requestAnimationFrame` does not run: emit a frame by hand.
+ *
+ * ```js
+ * strudelDev.frameEmitter.__emit('update', { time: 0, deltaTime: 0 });
+ * [...document.querySelectorAll('.cm-mini-sounding')].map((e) => e.textContent);
+ * ```
  */
 
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
 import { type DeckSourceSwitch } from '../../audio/DeckSourceSwitch';
+import { type FrameEmitter } from '../../FrameEmitter';
 import { type StrudelDeck } from '../StrudelDeck';
 import { type StrudelOfflineSwitch } from './offlineSwitch';
 import onsetProbeProcessorUrl from './OnsetProbeProcessor.js?url';
@@ -71,6 +79,7 @@ export async function installStrudelDevTools({
   sourceSwitchA,
   sourceSwitchB,
   offlineSwitch,
+  frameEmitter,
 }: {
   audio: AudioContext;
   deckA: WavenerdDeck;
@@ -80,6 +89,7 @@ export async function installStrudelDevTools({
   sourceSwitchA: DeckSourceSwitch;
   sourceSwitchB: DeckSourceSwitch;
   offlineSwitch: StrudelOfflineSwitch;
+  frameEmitter: FrameEmitter;
 }) {
   await audio.audioWorklet.addModule(onsetProbeProcessorUrl);
 
@@ -149,7 +159,7 @@ export async function installStrudelDevTools({
   /** Cutoffs of the cued pattern of a Strudel deck in the first cycle. Reads a private field. */
   function stagedCutoffs(deck: StrudelDeck): number[] {
     const staged = (deck as any).__staged;
-    return staged.queryArc(0, 1).map((hap: any) => hap.value.cutoff);
+    return staged.pattern.queryArc(0, 1).map((hap: any) => hap.value.cutoff);
   }
 
   /** Compile the same knob code on both Strudel decks at once and check each reads its own knob0. */
@@ -267,6 +277,7 @@ export async function installStrudelDevTools({
     sourceSwitchA,
     sourceSwitchB,
     offlineSwitch,
+    frameEmitter,
     onsets,
     probe,
     clearOnsets,

@@ -4,6 +4,9 @@ import { syntaxTree } from '@codemirror/language';
 import { javascript, javascriptLanguage, type scopeCompletionSource } from '@codemirror/lang-javascript';
 import * as webaudioModule from '@strudel/webaudio';
 import { STRUDEL_KNOB_NAMES, type StrudelEngine } from '../../strudel/StrudelEngine';
+import { type StrudelDeck } from '../../strudel/StrudelDeck';
+import { type FrameEmitter } from '../../FrameEmitter';
+import { strudelHighlight } from './strudelHighlight';
 
 const { soundMap } = webaudioModule;
 
@@ -175,12 +178,14 @@ function createCompletionSource(engine: StrudelEngine): CompletionSource {
 
 // == extension ====================================================================================
 /**
- * Language support of the Strudel deck editor: JavaScript, Strudel completion and mini-notation highlight.
+ * Language support of the Strudel deck editor: JavaScript, Strudel completion, mini-notation highlight
+ * and the highlight of what the deck is playing.
  */
-export function strudel(engine: StrudelEngine): Extension {
+export function strudel(deck: StrudelDeck, frameEmitter: FrameEmitter): Extension {
   return [
     javascript(),
-    javascriptLanguage.data.of({ autocomplete: createCompletionSource(engine) }),
+    javascriptLanguage.data.of({ autocomplete: createCompletionSource(deck.engine) }),
     miniHighlighter,
+    strudelHighlight(deck, frameEmitter),
   ];
 }

@@ -132,6 +132,11 @@ export function createCMTheme(theme: Theme): {
     '.cm-mini-rest, .cm-mini-rest *': {
       color: comments,
     },
+
+    // mini-notation atoms that the Strudel deck is playing now
+    '.cm-mini-sounding': {
+      outline: '1px solid ' + text,
+    },
   }, { dark });
 
   // -- syntax highlighting --------------------------------------------------------------------------
