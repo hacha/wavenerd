@@ -388,6 +388,7 @@ if (strudelOfflineSwitch != null) {
     sourceSwitchA,
     sourceSwitchB,
     offlineSwitch: strudelOfflineSwitch,
+    frameEmitter,
   });
 }
 

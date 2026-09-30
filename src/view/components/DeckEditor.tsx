@@ -18,6 +18,8 @@ import styles from './DeckEditor.module.css';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { parseErrorLines } from '../utils/parseErrorLines';
 import { strudel } from '../codemirror/strudel';
+import { type CodeDeck } from '../../CodeDeck';
+import { StrudelDeck } from '../../strudel/StrudelDeck';
 
 // == utils ========================================================================================
 /** Ref: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values */
@@ -99,6 +101,7 @@ function keyToLog(event: KeyboardEvent): string | null {
 
 // == component ====================================================================================
 export const DeckEditor = forwardRef(({
+  deck,
   mode,
   codeAtom,
   logsAtom,
@@ -112,6 +115,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom,
   className,
 }: {
+  deck: CodeDeck;
   mode: DeckSourceMode;
   codeAtom: PrimitiveAtom<string>;
   logsAtom: PrimitiveAtom<[ id: number, text: string ][]>;
@@ -129,7 +133,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
 }, ref: React.Ref<{ focusEditor: () => void }>) => {
-  const { storageManager, strudelDeckA } = useContext(StuffContext)!;
+  const { storageManager, frameEmitter } = useContext(StuffContext)!;
 
   const refCodeMirror = useRef<ReactCodeMirrorRef>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -270,10 +274,9 @@ export const DeckEditor = forwardRef(({
 
   // -- extensions ---------------------------------------------------------------------------------
   // keep the language instance across renders, so its plugins and the completion popup survive typing
-  const strudelEngine = strudelDeckA.engine;
   const language = useMemo(
-    () => mode === 'strudel' ? strudel(strudelEngine) : cpp(),
-    [mode, strudelEngine],
+    () => deck instanceof StrudelDeck ? strudel(deck, frameEmitter) : cpp(),
+    [deck, frameEmitter],
   );
 
   const extensions = useMemo(() => [
