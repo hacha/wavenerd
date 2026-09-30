@@ -1,28 +1,17 @@
 import * as coreModule from '@strudel/core';
 import * as webaudioModule from '@strudel/webaudio';
+import { mini2ast } from '@strudel/mini';
 import { transpiler } from '@strudel/transpiler';
 import { type CodeDeck, type CodeDeckEvents, type CueStatus } from '../CodeDeck';
 import { EventEmittable } from '../utils/EventEmittable';
 import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
-import { type StrudelEngine } from './StrudelEngine';
+import { STRUDEL_KNOB_NAMES, type StrudelEngine } from './StrudelEngine';
 
 const { getTrigger, ref, silence } = coreModule;
 const { setSuperdoughAudioController, webaudioOutput, webaudioRepl } = webaudioModule;
 
 type Pattern = any;
-
-/** Same as the knobs of GLSL decks. */
-export const STRUDEL_KNOB_NAMES = [
-  'knob0',
-  'knob1',
-  'knob2',
-  'knob3',
-  'knob4',
-  'knob5',
-  'knob6',
-  'knob7',
-] as const;
 
 /**
  * A deck that plays Strudel code. Behaves like a `WavenerdDeck` from the deck UI.
@@ -133,7 +122,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     if (pattern == null) {
       this.__staged = null;
       this.__setCueStatus('none');
-      this.__emit('error', { error: formatError(error) });
+      this.__emit('error', { error: formatError(error, code) });
       return;
     }
 
@@ -180,9 +169,42 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
   }
 }
 
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
+/**
+ * Syntax errors end with `(line:column)` (acorn). Mini-notation errors say `at line N`, where N is a line of the code.
+ */
+function formatError(error: unknown, code: string): string {
+  if (!(error instanceof Error)) {
+    return String(error ?? 'Unknown error');
   }
-  return String(error ?? 'Unknown error');
+
+  if (error.message.startsWith('[mini]')) {
+    return findMiniError(code, error.message) ?? error.message;
+  }
+
+  return error.message;
+}
+
+/**
+ * The mini-notation error from Strudel counts lines inside the string. Parse each mini string again to find it in the code.
+ * Only accepts the same error, so broken strings in comments are skipped.
+ */
+function findMiniError(code: string, message: string): string | null {
+  const detail = miniErrorDetail(message);
+
+  // double quotes and backticks are mini-notation. backticks with `${}` are skipped
+  for (const match of code.matchAll(/"(?:[^"\\\n]|\\.)*"|`(?:[^`\\$]|\\.)*`/g)) {
+    const content = match[0].slice(1, -1);
+    try {
+      mini2ast(`"${content}"`, match.index, code);
+    } catch (e) {
+      if (e instanceof Error && miniErrorDetail(e.message) === detail) { return e.message; }
+    }
+  }
+
+  return null;
+}
+
+/** The message of a mini-notation error without `[mini] parse error at line N: `. */
+function miniErrorDetail(message: string): string {
+  return message.replace(/^\[mini\] parse error at line \d+: /, '');
 }

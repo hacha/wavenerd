@@ -1,7 +1,6 @@
 import { EditorView, type KeyBinding, keymap } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { cpp } from '@codemirror/lang-cpp';
-import { javascript } from '@codemirror/lang-javascript';
 import ReactCodeMirror, { Prec, type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { forwardRef, useCallback, useContext, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import SimpleBar from 'simplebar-react';
@@ -17,6 +16,8 @@ import { StuffContext } from '../StuffContext';
 import clsx from 'clsx';
 import styles from './DeckEditor.module.css';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
+import { parseErrorLines } from '../utils/parseErrorLines';
+import { strudel } from '../codemirror/strudel';
 
 // == utils ========================================================================================
 /** Ref: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values */
@@ -128,7 +129,7 @@ export const DeckEditor = forwardRef(({
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
 }, ref: React.Ref<{ focusEditor: () => void }>) => {
-  const { storageManager } = useContext(StuffContext)!;
+  const { storageManager, strudelDeckA } = useContext(StuffContext)!;
 
   const refCodeMirror = useRef<ReactCodeMirrorRef>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -264,19 +265,23 @@ export const DeckEditor = forwardRef(({
 
   // -- error layer --------------------------------------------------------------------------------
   const error = useAtomValue(errorAtom);
-  const errorLines = useMemo(() => {
-    if (error == null) {
-      return [];
-    }
-
-    const lines: number[] = [];
-    for (const match of error.matchAll(/ERROR: (\d+):(\d+)/g)) {
-      lines.push(parseInt(match[2], 10));
-    }
-
-    return lines;
-  }, [error]);
+  const errorLines = useMemo(() => parseErrorLines(mode, error), [mode, error]);
   const errorlayer = useMemo(() => createErrorlayer(errorLines), [errorLines]);
+
+  // -- extensions ---------------------------------------------------------------------------------
+  // keep the language instance across renders, so its plugins and the completion popup survive typing
+  const strudelEngine = strudelDeckA.engine;
+  const language = useMemo(
+    () => mode === 'strudel' ? strudel(strudelEngine) : cpp(),
+    [mode, strudelEngine],
+  );
+
+  const extensions = useMemo(() => [
+    language,
+    Prec.highest(keymap.of(customKeymap)),
+    errorlayer,
+    backlayer,
+  ], [language, customKeymap, errorlayer]);
 
   // -- event handlers -----------------------------------------------------------------------------
   const handleKeyDown = useCallback(
@@ -388,12 +393,7 @@ export const DeckEditor = forwardRef(({
           ref={refCodeMirror}
           className="h-full"
           value={code}
-          extensions={[
-            mode === 'strudel' ? javascript() : cpp(),
-            Prec.highest(keymap.of(customKeymap)),
-            errorlayer,
-            backlayer,
-          ]}
+          extensions={extensions}
           theme={[
             theme.extensions,
             fontExtension,

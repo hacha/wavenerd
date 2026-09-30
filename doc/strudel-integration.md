@@ -1,6 +1,6 @@
 # Strudel 統合 設計（v2 最小構成）
 
-最終更新: 2026-09-30（M3）
+最終更新: 2026-09-30（M4）
 
 v1（`archive/strudel-v1`）は参考のみ。コードは移植せず、この設計に沿って作り直す。
 
@@ -107,8 +107,15 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - 各スロットで GLSL 用と Strudel 用の `Deck` を両方マウントしておき、表示だけ切り替える。再マウントすると未保存の編集が消え、コードも再適用されて音が飛ぶため。
 - コードの保存先はモードごとに分ける：`decks/a.glsl` / `decks/a.strudel.js`、メモリは `memories/N.glsl` / `memories/strudel/N.js`。
 - Strudel モードではシェーダーライブラリ（`Mod-P`）を開かない。
-- Strudel モードのエディタは JavaScript 言語モード＋既存テーマにする（見た目の作り込みは後回し）。
-- キー操作・状態表示は GLSL デッキと共通。
+- モード切り替えは `GLSL | Strudel` の 2 分割トグルで、現在のモードを反転色で示す。色は既存のテーマトークン（`bar-fg` / `bar-bg`）のみ。
+- Strudel モードのエディタ（`src/view/codemirror/strudel.ts`）
+  - JavaScript 言語モード＋既存テーマ。
+  - mini-notation のハイライト：`"…"` とバッククォート（`${}` の中は除く）の中身を、数値・`~`・語・演算子に分けてテーマの `constants` / `comments` / `strings` / `operators` の色で塗る。シングルクォートは mini-notation ではないので対象外。
+  - 補完：識別子は evalScope したモジュールのエクスポート＋`knob0`〜`knob7`、`.` の後は `Pattern.prototype` のメソッド、`s()` / `sound()`（メソッドも含む）の mini 文字列の中は superdough の `soundMap` のサウンド名（prebake の読み込みに追従するため毎回読む）。`javascriptLanguage.data` に登録するので、JS のローカル変数の補完も残る。
+  - 言語拡張は `useMemo` で保持する。毎回作り直すと入力のたびにプラグインが再構成され、補完のポップアップが閉じる。
+- エラー行：`src/view/utils/parseErrorLines.ts` でモードごとに解析する。GLSL は `ERROR: 0:N`、Strudel は構文エラー（acorn）の末尾 `(N:C)` と mini-notation の `at line N`。Strudel の mini-notation エラーは文字列内の行番号しか持たないので、`StrudelDeck` が各 mini 文字列を `mini2ast` で解析し直して、コード上の行に直したメッセージにする（元と同じエラー内容のものだけを採用するので、コメント内の壊れた文字列は無視される）。実行時エラー（`foo is not defined` など）は行が取れないので、ジャンプしない。
+- ステータスバーの文言は GLSL では `shader`、Strudel では `pattern`。
+- キー操作は GLSL デッキと共通。
 
 ### 8. ビルド・依存関係
 
@@ -178,6 +185,15 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 |---|---|
 | デッキ間の分離 | `strudelDev.knobCheck()`：同じコード `s("bd*4").lpf(knob0.range(200, 8000))` を A / B で同時にコンパイルし、A の knob0=1・B の knob0=0 で A は 8000、B は 200。A だけ 0.5 にすると A は 4100、B は 200 のまま |
 | 初期値 | リロード後、MIDIMAN に保存されている `/deck_a/knob0` の値が Strudel デッキ A にも入る |
+
+## M4 結果（2026-09-30）
+
+| 確認項目 | 結果 |
+|---|---|
+| エラー | `s("bd").lpf(` → `Unexpected token (1:12)`。3 行目の `.n("0 [1")` → `[mini] parse error at line 3: …`。`foo123()` → `foo123 is not defined`（行なし）。GLSL は従来どおり `ERROR: 0:2: …` |
+| エラー行の UI | mini-notation のエラーで 3 行目に下線が出て、ステータスバーのクリックで 3 行目に移動する。実行時エラーはクリックできない表示になる |
+| 補完 | `s("sawt` / `.s("sawt` → `sawtooth` など（`note("c` では出ない）、`.lp` → `lp` / `lpattack` / …、`kno` → `knob0`〜`knob7`。入力を続けてもポップアップは閉じない |
+| ハイライト | mini 文字列の演算子・数値・語が色分けされる |
 
 ## 未決事項・リスク
 
