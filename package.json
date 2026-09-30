@@ -1,7 +1,7 @@
 {
   "name": "wavenerd",
   "version": "0.2.4",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "all": "npm run lint && npm run clean && npm run build",
     "clean": "rimraf dist/",

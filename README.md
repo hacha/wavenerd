@@ -28,4 +28,6 @@ See [the help](guides/help.md), it should work as a manual and a tutorial.
 
 ## License
 
-[MIT](LICENSE)
+This fork is licensed under [AGPL-3.0-or-later](LICENSE), since it depends on [Strudel](https://codeberg.org/uzu/strudel) and superdough (AGPL-3.0-or-later).
+
+The code originally written for [0b5vr/wavenerd](https://github.com/0b5vr/wavenerd) is also available under the [MIT License](LICENSE-MIT).
