@@ -74,7 +74,7 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 
 - `compile(code)`
   - `repl.evaluate(code, false)` を呼ぶ。
-  - `scheduler.setPattern` をインスタンス単位で上書きして、評価結果を `staged` に保存する。
+  - 評価結果（`evaluate()` の戻り値のパターン。エラー時は `undefined`）を `staged` に保存する。`autostart=false` なら Cyclist は起動しないので、`scheduler.setPattern` の上書きは不要（M0 で確認）。
   - 状態は `compiling` → `ready` と遷移する（エラー時は `none` にして `error` を発行）。
 - `applyCue()`：状態を `applying` にし、次の小節頭で反映する。
 - `applyCueImmediately()`：即時に反映する。
@@ -129,9 +129,29 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 
 後回しにするもの：パターンのハイライト、widget（`_scope` など）、Strudel 用エディタテーマ、OPFS サンプルの Strudel からの利用。
 
+## M0 スパイク結果（2026-09-30）
+
+コード：`src/strudel/`（`DeckOutputController` / `DeckClock` / `StrudelScheduler` は M1 以降でも使う）、`src/strudel/spike/`（使い捨て）。`?strudelSpike` を付けて起動すると `window.strudelSpike` から操作できる。
+
+| 確認項目 | 結果 |
+|---|---|
+| モジュールの同一性 | `superdough` と `@strudel/webaudio` の `setSuperdoughAudioController` / `getAudioContext` が同一。dev と `pnpm build` の両方で確認 |
+| ルーティング | 発音後もデフォルト controller の orbit 数は 0。A / B の controller にだけ orbit ができる |
+| タイミング | GLSL の小節頭と Strudel の cycle 頭の差は **+0.49ms（揺れ ±0.02ms）**。140→173 BPM の変更、pause/再開、rewind の後もずれない |
+| 2 つの repl | 評価を同時に投げても直列化され、`$:` のスタックはデッキごとに独立。音も各デッキの出力ノードにだけ出る |
+
+測定方法：GLSL デッキ A で小節頭にクリック、Strudel A で毎 cycle に square を鳴らし、両者の出力を AudioWorklet で比較して立ち上がりのフレームを記録した。
+
+分かったこと：
+- `DeckClock` は hostDeck の BeatManager の `update` イベント（`time` / `sixteenBar` / `bpm`）と `blockOffset` から時刻を求める。deckB も hostDeck の BeatManager を自分の書き込み位置で更新するので、イベントが少し戻ることがある。16 小節の位相を「最も近い表現」で展開して吸収している。
+- `initAudio()` は使わず、`loadWorklets()` を直接呼ぶ。
+- 開発時の注意：Claude Code のサンドボックスではポートの bind と pnpm のグローバルストアへの書き込みが禁止されているため、`pnpm dev` / `pnpm add` はサンドボックス外で実行する。
+
+未確認：ミキサーのチャンネル音量を 0 にしたとき、Strudel の音が完全に消えるか（耳で確認する）。
+
 ## 未決事項・リスク
 
 - **Strudel モード中のクロック**：BeatManager はデッキの `update()` が再生中に呼ばれている間しか進まない。Strudel モードでも裏で GLSL デッキを再生し続ける（出力はミュート）前提にする。その間も GPU 描画は続くので負荷を確認する。
 - **ブラウザ未検証**：ルーティングの回避策は superdough 1.3.0 のソースを読んで立てたもので、まだ動かしていない。更新で内部が変わると壊れるので、superdough はバージョンを固定する。
-- **遅延の差**：GLSL デッキは `latencyBlocks`（32 blocks ≈ 85ms）分の遅延で再生され、superdough は指定した絶対時刻で発音する。両者が揃うかは M0 で確認する。
+- ~~**遅延の差**~~：M0 で確認済み（差は +0.49ms）。
 - **外部 CDN への依存**：音源は `strudel.b-cdn.net` と `felixroos.github.io` から取得するので、オフライン時の挙動を決める必要がある。

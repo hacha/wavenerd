@@ -254,6 +254,12 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// == strudel spike (M0) ===========================================================================
+if (new URLSearchParams(location.search).has('strudelSpike')) {
+  const { startStrudelSpike } = await import('./strudel/spike/strudelSpike');
+  await startStrudelSpike({ audio, deckA, deckB, mixer });
+}
+
 // == render =======================================================================================
 const root = createRoot(document.getElementById('root')!);
 root.render(
