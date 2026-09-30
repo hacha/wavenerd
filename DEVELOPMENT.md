@@ -48,3 +48,4 @@ Not covered by automated tests.
 - Pause stops sound at once, and resume doesn't double notes.
 - Rewind doesn't overlap old notes.
 - Folding inside `${...}` of a multi-line backtick string keeps mini-notation highlighting.
+- With a deck playing a silent pattern, hide the tab for more than 40 seconds, then bring sound back while the tab is still hidden. There should be no "Buffer underrun" warnings in the console, and the first notes shouldn't stutter.

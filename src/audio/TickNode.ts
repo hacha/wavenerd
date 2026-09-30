@@ -1,7 +1,7 @@
 import processorUrl from './TickProcessor.js?url';
 
 /**
- * Calls listeners from the audio thread, about every 10ms while the AudioContext is running.
+ * Calls listeners from the audio thread, every 4 blocks (about 12ms at 44.1kHz) while the AudioContext is running.
  * Unlike `setTimeout` / `setInterval`, it is not throttled when the tab is hidden and silent.
  */
 export class TickNode extends AudioWorkletNode {
