@@ -393,6 +393,10 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - 音源のソースを 1 つずつ読み込み、1 つ失敗しても他を止めない（`src/strudel/prebake.ts`）。以前は JSON が 1 つ落ちるとドラムマシンの別名（`bank("tr909")` など）が登録されなかった。
 - 失敗したソースの名前を `StrudelEngine.failedSounds` に持ち、Strudel モードのステータスバーにアイコンで出す。
 - ブラウザの `online` イベントで、失敗したソースだけを読み込み直す。
+- 演奏中に音声ファイルの取得に失敗した音を `StrudelEngine.failedFiles` に持ち、同じアイコンで出す（ツールチップは「一覧の失敗」と「演奏中の失敗」に分ける）。`StrudelDeck` の出力で `superdough()` の失敗を受け取り、`bd:5` や `tr909_bd` のようにコードに書いた名前で記録する。`strudel.log` のメッセージには音の名前が入らないので使わない。
+  - 対象は `TypeError: Failed to fetch`（回線断）と `EncodingError`（エラーページなど音声でないファイル）。どちらも superdough が失敗を覚えるので、リロードまで消さない。`online` での読み込み直しでも消さない。
+  - `sound ... not found` は数えない。一覧の失敗（既存の表示）か、名前の打ち間違いのどちらかなので。
+  - 失敗した Promise はキャッシュされるので、以降の発音は即座に失敗する。同じ名前は 1 回だけ記録し、イベントも 1 回だけ出す。
 
 ### 確認結果（2026-09-30、Chrome）
 
@@ -407,8 +411,10 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 
 未確認：実際に回線を切ったときの `online` イベント経由の再読み込み（スイッチはイベントを出さないため、手動で呼んだ）。
 
+演奏中の失敗（2026-10-01、Chrome）：AudioContext を止めたまま（無音）、一覧を読み込んだ後にオフラインスイッチを入れ、スケジューラの発音関数に `s("bd:5 hh:3 bd:5")`、`s("bd").bank("tr909")`、`note("c").s("gm_piano")`、`s("nosuchsound")` のハップを直接渡した。`failedFiles` は `tr909_bd`、`gm_piano`、`bd:5`、`hh:3` になり、`nosuchsound` は入らなかった。`bd:5 hh:3 bd:5` を 3 回（9 ハップ）渡してもイベントは 2 回だった。`retryFailedSounds()` の後も残り、ツールチップに出た。音を出しての通しの確認はしていない。
+
 ### 残っていること
 
-- 音声ファイル単位の失敗は、回線が戻ってもリロードまで直らない。直すには superdough と `@strudel/soundfonts` へのパッチが要る（実際に動くのは minify された `dist/index.mjs`）。
+- 音声ファイル単位の失敗は、回線が戻ってもリロードまで直らない（表示はする）。直すには superdough と `@strudel/soundfonts` へのパッチが要る（実際に動くのは minify された `dist/index.mjs`）。
 - 完全オフライン対応の案：CDN の内容を手元に落とすスクリプトを用意し、取得先を切り替える。切り替え口は `prebake.ts` の `baseCDN` と、`@strudel/soundfonts` の `setSoundfontUrl`。音源をリポジトリに同梱する案は、容量と再配布のライセンス確認が要るので採らない。
 - 計測用：`?strudelDev&strudelOffline` でオフライン状態から起動する。途中の切り替えは `strudelDev.offlineSwitch.offline`。このスイッチは `online` イベントを出さないので、復帰は `strudelDev.strudelDeckA.engine.retryFailedSounds()` で試す。
