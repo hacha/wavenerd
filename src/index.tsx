@@ -72,6 +72,7 @@ strudelDeckB.output.connect(sourceSwitchB.inputStrudel);
 sourceSwitchB.output.connect(mixer.inputB);
 
 interface DeckSlot {
+  mode: DeckSourceMode;
   renderGate: DeckRenderGate;
   sourceSwitch: DeckSourceSwitch;
   strudelDeck: StrudelDeck;
@@ -79,12 +80,14 @@ interface DeckSlot {
 }
 
 const slotA: DeckSlot = {
+  mode: 'glsl',
   renderGate: new DeckRenderGate(deckA),
   sourceSwitch: sourceSwitchA,
   strudelDeck: strudelDeckA,
   strudelStopTimer: null,
 };
 const slotB: DeckSlot = {
+  mode: 'glsl',
   renderGate: new DeckRenderGate(deckB),
   sourceSwitch: sourceSwitchB,
   strudelDeck: strudelDeckB,
@@ -96,6 +99,10 @@ const slotB: DeckSlot = {
  * Only its rendering stops.
  */
 function setDeckMode(slot: DeckSlot, mode: DeckSourceMode) {
+  // settings are applied again on unrelated changes
+  if (slot.mode === mode) { return; }
+  slot.mode = mode;
+
   const { renderGate, sourceSwitch, strudelDeck } = slot;
 
   if (slot.strudelStopTimer != null) {

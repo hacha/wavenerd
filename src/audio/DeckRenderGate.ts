@@ -53,16 +53,19 @@ export class DeckRenderGate {
       const shouldRead = this.__enabled && hasDrawn;
       hasDrawn = false;
 
+      if (this.__enabled) {
+        // `update()` reads the buffer before it advances the write position.
+        // A deck without a program never draws, so do not wait for a draw.
+        const onAudible = this.__onAudible;
+        this.__onAudible = null;
+        onAudible?.(deck.bufferWriteBlocks * BLOCK_SIZE / deck.sampleRate);
+      }
+
       if (!shouldRead) {
         // a new buffer every time, since the deck transfers it to the audio thread
         const frames = deck.framesPerRender;
         return Promise.resolve([new Float32Array(frames), new Float32Array(frames)]);
       }
-
-      // `update()` reads the buffer before it advances the write position
-      const onAudible = this.__onAudible;
-      this.__onAudible = null;
-      onAudible?.(deck.bufferWriteBlocks * BLOCK_SIZE / deck.sampleRate);
 
       return readBuffer();
     };
