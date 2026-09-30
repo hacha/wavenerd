@@ -70,7 +70,8 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     const controller = createDeckOutputController(audio, this.output);
 
     const defaultOutput = (hap: any, deadline: number, duration: number, cps: number, t: number) => {
-      // superdough reads the controller synchronously, before its first await
+      // superdough takes the controller synchronously, before its first await.
+      // `patches/superdough@1.3.0.patch` makes bus modulation (`bmod`) use it too
       setSuperdoughAudioController(controller);
       return webaudioOutput(hap, deadline, duration, cps, t);
     };
@@ -79,6 +80,9 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       audio,
       clock,
       onTrigger: getTrigger({ defaultOutput, getTime: () => audio.currentTime }),
+      onError: (error) => {
+        this.__emit('error', { error: error instanceof Error ? error.message : String(error) });
+      },
     });
 
     // used only to evaluate code. its own Cyclist never starts
@@ -93,6 +97,14 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     // same as WavenerdDeck
     clock.hostDeck.on('rewind', () => {
       this.applyCueImmediately();
+      controller.reset();
+    });
+
+    // Haps within the lookahead are already sent to superdough and cannot be cancelled.
+    // Disconnect the orbits they are wired to, so the deck stops at once like a GLSL deck.
+    // The scheduler queries the same range again on resume, into new orbits.
+    clock.hostDeck.on('pause', () => {
+      controller.reset();
     });
   }
 

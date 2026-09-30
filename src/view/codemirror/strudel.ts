@@ -58,6 +58,9 @@ function buildMiniDecorations(view: EditorView): DecorationSet {
   const { state } = view;
   const builder = new RangeSetBuilder<Decoration>();
 
+  // a string can span several visible ranges. skip the ones already added
+  let processedTo = -1;
+
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
       from,
@@ -65,6 +68,8 @@ function buildMiniDecorations(view: EditorView): DecorationSet {
       enter: (nodeRef) => {
         const node = nodeRef.node;
         if (!isMiniString(node, state)) { return; }
+        if (node.from < processedTo) { return false; }
+        processedTo = node.to;
 
         for (const [begin, end] of miniStringRanges(node, state)) {
           const text = state.doc.sliceString(begin, end);

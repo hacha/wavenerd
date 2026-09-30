@@ -8,6 +8,8 @@ class DeckOutput {
   public readonly audio: AudioContext;
   public readonly destination: AudioNode;
 
+  private __stereoMixes: StereoPannerNode[] = [];
+
   public constructor(audio: AudioContext, destination: AudioNode) {
     this.audio = audio;
     this.destination = destination;
@@ -18,10 +20,13 @@ class DeckOutput {
     const stereoMix = new StereoPannerNode(this.audio);
     input.connect(stereoMix);
     stereoMix.connect(this.destination);
+    this.__stereoMixes.push(stereoMix);
   };
 
   public reset(): void {
     // orbits are disconnected by the controller itself
+    this.__stereoMixes.forEach((stereoMix) => stereoMix.disconnect());
+    this.__stereoMixes = [];
   }
 
   public disconnect(): void {
