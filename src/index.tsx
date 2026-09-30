@@ -56,6 +56,14 @@ const deckB = new WavenerdDeck({ ...deckOptions, hostDeck: deckA });
 const mixer = new Mixer(audio);
 
 // strudel
+// `?strudelDev&strudelOffline` starts without the network. must be installed before the engine loads the sounds
+const strudelDevEnabled = new URLSearchParams(location.search).has('strudelDev');
+const strudelOfflineSwitch = strudelDevEnabled
+  ? (await import('./strudel/dev/offlineSwitch')).installStrudelOfflineSwitch(
+      new URLSearchParams(location.search).has('strudelOffline'),
+    )
+  : null;
+
 const strudelEngine = new StrudelEngine({ audio, hostDeck: deckA });
 const strudelDeckA = new StrudelDeck({ engine: strudelEngine, id: 'deckA' });
 const strudelDeckB = new StrudelDeck({ engine: strudelEngine, id: 'deckB' });
@@ -369,7 +377,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 // == strudel dev tools ============================================================================
-if (new URLSearchParams(location.search).has('strudelDev')) {
+if (strudelOfflineSwitch != null) {
   const { installStrudelDevTools } = await import('./strudel/dev/strudelDevTools');
   await installStrudelDevTools({
     audio,
@@ -379,6 +387,7 @@ if (new URLSearchParams(location.search).has('strudelDev')) {
     strudelDeckB,
     sourceSwitchA,
     sourceSwitchB,
+    offlineSwitch: strudelOfflineSwitch,
   });
 }
 

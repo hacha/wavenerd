@@ -9,8 +9,10 @@ import IconCircle from '~icons/mdi/circle-medium';
 import IconError from '~icons/mdi/close-octagon';
 import IconMute from '~icons/mdi/volume-mute';
 import IconPlay from '~icons/mdi/play';
+import IconSoundsFailed from '~icons/mdi/cloud-off-outline';
 import { useSettings } from '../stores/hooks/useSettings';
 import { midiParamsAtom } from '../stores/atoms/midi';
+import { strudelFailedSoundsAtom } from '../stores/atoms/strudel';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { parseErrorLines } from '../utils/parseErrorLines';
 
@@ -188,6 +190,19 @@ function Message({
   }
 }
 
+function FailedSounds() {
+  const failedSounds = useAtomValue(strudelFailedSoundsAtom);
+
+  if (failedSounds.length === 0) { return null; }
+
+  return (
+    <IconSoundsFailed
+      className={`${iconCls} text-error`}
+      data-stalker={`Failed to load sounds: ${failedSounds.join(', ')}\nThey are loaded again when the network is back. Sounds that failed while playing need a reload`}
+    />
+  );
+}
+
 const modeLabels: [DeckSourceMode, string][] = [
   ['glsl', 'GLSL'],
   ['strudel', 'Strudel'],
@@ -268,6 +283,7 @@ export function DeckStatusBar({
         filterParamName={filterParamName}
         onJumpToLine={onJumpToLine}
       />
+      {mode === 'strudel' && <FailedSounds />}
       {compileTimeEnabled && <CompileTime compileTimeAtom={compileTimeAtom} />}
       <ModeToggle mode={mode} onToggleMode={onToggleMode} />
       <IconBuild

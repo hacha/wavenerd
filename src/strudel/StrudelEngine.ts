@@ -1,6 +1,7 @@
 import * as coreModule from '@strudel/core';
 import * as webaudioModule from '@strudel/webaudio';
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
+import { EventEmittable } from '../utils/EventEmittable';
 import { DeckClock } from './DeckClock';
 import { prebake } from './prebake';
 
@@ -27,10 +28,14 @@ export interface StrudelCompletionWords {
 }
 const { loadWorklets, setAudioContext } = webaudioModule;
 
+export interface StrudelEngineEvents {
+  changeFailedSounds: { failedSounds: string[] };
+}
+
 /**
  * Global Strudel / superdough state shared by every {@link StrudelDeck}.
  */
-export class StrudelEngine {
+export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
   public readonly audio: AudioContext;
   public readonly clock: DeckClock;
 
@@ -41,6 +46,18 @@ export class StrudelEngine {
 
   private __evalQueue: Promise<unknown> = Promise.resolve();
   private __completionWords: StrudelCompletionWords = { globals: [], methods: [] };
+  private __failedSounds: string[] = [];
+  private __isLoadingSounds = false;
+  private __isRetryPending = false;
+
+  /**
+   * Names of the sound sources that could not be loaded, usually because the network is down.
+   * They are loaded again when the browser goes online.
+   * Audio files that fail when they are played are not listed here.
+   */
+  public get failedSounds(): string[] {
+    return this.__failedSounds;
+  }
 
   /**
    * Words for the editor completion. Empty until {@link ready}.
@@ -50,6 +67,8 @@ export class StrudelEngine {
   }
 
   public constructor({ audio, hostDeck }: { audio: AudioContext; hostDeck: WavenerdDeck }) {
+    super();
+
     this.audio = audio;
 
     // before anything touches superdough, otherwise it creates its own AudioContext
@@ -57,6 +76,19 @@ export class StrudelEngine {
 
     this.clock = new DeckClock(hostDeck);
     this.ready = this.__init();
+
+    window.addEventListener('online', () => {
+      this.retryFailedSounds();
+    });
+  }
+
+  /**
+   * Load the sound sources that failed again. Does nothing if none failed.
+   */
+  public async retryFailedSounds(): Promise<void> {
+    if (this.__failedSounds.length === 0) { return; }
+
+    await this.__loadSounds(this.__failedSounds);
   }
 
   /**
@@ -84,9 +116,32 @@ export class StrudelEngine {
     this.__completionWords = createCompletionWords(modules);
 
     // network. do not block evaluation
-    prebake().catch((e: unknown) => {
+    this.__loadSounds();
+  }
+
+  private async __loadSounds(only?: string[]): Promise<void> {
+    if (this.__isLoadingSounds) {
+      // the network might have come back in the middle of the load. load again after it
+      this.__isRetryPending = true;
+      return;
+    }
+    this.__isLoadingSounds = true;
+    this.__isRetryPending = false;
+
+    try {
+      this.__failedSounds = await prebake(only);
+    } catch (e: unknown) {
+      // prebake settles each source by itself. should not happen
       console.warn('[strudel] failed to load sounds', e);
-    });
+    } finally {
+      this.__isLoadingSounds = false;
+    }
+
+    this.__emit('changeFailedSounds', { failedSounds: this.__failedSounds });
+
+    if (this.__isRetryPending) {
+      await this.retryFailedSounds();
+    }
   }
 }
 

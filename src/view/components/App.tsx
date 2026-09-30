@@ -19,6 +19,7 @@ import { useMidiSubscribers } from '../stores/hooks/useMidiSubscribers';
 import { useSettings } from '../stores/hooks/useSettings';
 import { useSettingsSubscribers } from '../stores/hooks/useSettingsSubscribers';
 import { useRecorderSubscribers } from '../stores/hooks/useRecorderSubscribers';
+import { useStrudelSubscribers } from '../stores/hooks/useStrudelSubscribers';
 import { type Stuff, StuffContext } from '../StuffContext';
 import { useFullscreenSubscriber } from '../stores/hooks/useFullscreenSubscriber';
 import { useStorageSubscribers } from '../stores/hooks/useStorageSubscribers';
@@ -140,6 +141,7 @@ export function OutOfContextApp() {
     { glslA: deckAGlslAtoms, glslB: deckBGlslAtoms, strudelA: deckAStrudelAtoms, strudelB: deckBStrudelAtoms },
   );
   useRecorderSubscribers(recorder);
+  useStrudelSubscribers(strudelDeckA.engine);
   useStorageSubscribers(storageManager);
   useFullscreenSubscriber();
 
