@@ -21,6 +21,9 @@ import { StorageManager } from './StorageManager';
 import { loadFileAsImage } from './utils/loadFileAsImage';
 import { pathToAssetName } from './utils/pathToAssetName';
 import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
+import { DeckSourceSwitch } from './audio/DeckSourceSwitch';
+import { StrudelEngine } from './strudel/StrudelEngine';
+import { StrudelDeck } from './strudel/StrudelDeck';
 import './index.css';
 
 // == setup ========================================================================================
@@ -49,8 +52,21 @@ const deckA = new WavenerdDeck(deckOptions);
 const deckB = new WavenerdDeck({ ...deckOptions, hostDeck: deckA });
 const mixer = new Mixer(audio);
 
-deckA.node.connect(mixer.inputA);
-deckB.node.connect(mixer.inputB);
+// strudel
+const strudelEngine = new StrudelEngine({ audio, hostDeck: deckA });
+const strudelDeckA = new StrudelDeck({ engine: strudelEngine, id: 'deckA' });
+const strudelDeckB = new StrudelDeck({ engine: strudelEngine, id: 'deckB' });
+
+// each slot plays either GLSL or Strudel
+const sourceSwitchA = new DeckSourceSwitch(audio);
+deckA.node.connect(sourceSwitchA.inputGlsl);
+strudelDeckA.output.connect(sourceSwitchA.inputStrudel);
+sourceSwitchA.output.connect(mixer.inputA);
+
+const sourceSwitchB = new DeckSourceSwitch(audio);
+deckB.node.connect(sourceSwitchB.inputGlsl);
+strudelDeckB.output.connect(sourceSwitchB.inputStrudel);
+sourceSwitchB.output.connect(mixer.inputB);
 
 const reverb = new Reverb(audio);
 mixer.output.connect(reverb.input);
@@ -71,8 +87,8 @@ const router = new AudioDestinationRouter(audio);
 
 router.addSource('master', masterGain);
 router.addSource('cue', cueMixer.output);
-router.addSource('deckA', deckA.node);
-router.addSource('deckB', deckB.node);
+router.addSource('deckA', sourceSwitchA.output);
+router.addSource('deckB', sourceSwitchB.output);
 
 // == updates ======================================================================================
 async function updateAudio() {
@@ -218,6 +234,17 @@ function applySettings(settings: Partial<Settings>) {
     deckB.latencyBlocks = settings.latencyBlocks;
   }
 
+  // the GLSL deck keeps running in the Strudel mode, since its BeatManager is the clock
+  if (settings.deckAMode != null) {
+    sourceSwitchA.mode = settings.deckAMode;
+    strudelDeckA.active = settings.deckAMode === 'strudel';
+  }
+
+  if (settings.deckBMode != null) {
+    sourceSwitchB.mode = settings.deckBMode;
+    strudelDeckB.active = settings.deckBMode === 'strudel';
+  }
+
   if (settings.masterDCRemoval != null) {
     mixer.dcRemoval = settings.masterDCRemoval;
   }
@@ -254,10 +281,10 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// == strudel spike (M0) ===========================================================================
-if (new URLSearchParams(location.search).has('strudelSpike')) {
-  const { startStrudelSpike } = await import('./strudel/spike/strudelSpike');
-  await startStrudelSpike({ audio, deckA, deckB, mixer });
+// == strudel dev tools ============================================================================
+if (new URLSearchParams(location.search).has('strudelDev')) {
+  const { installStrudelDevTools } = await import('./strudel/dev/strudelDevTools');
+  await installStrudelDevTools({ audio, deckA, deckB, strudelDeckA, strudelDeckB });
 }
 
 // == render =======================================================================================
@@ -268,6 +295,8 @@ root.render(
       deckA,
       deckB,
       hostDeck: deckA,
+      strudelDeckA,
+      strudelDeckB,
       mixer,
       recorder,
       router,

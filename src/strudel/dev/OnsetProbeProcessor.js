@@ -1,5 +1,5 @@
 // Posts the frame of each rising edge, per input channel.
-// M0 spike only.
+// Dev tool only (?strudelDev).
 const THRESHOLD_ON = 0.1;
 const THRESHOLD_OFF = 0.01;
 const REARM_FRAMES = 4800; // 100ms of silence at 48kHz

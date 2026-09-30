@@ -1,6 +1,6 @@
 # Strudel 統合 設計（v2 最小構成）
 
-最終更新: 2026-09-30
+最終更新: 2026-09-30（M1）
 
 v1（`archive/strudel-v1`）は参考のみ。コードは移植せず、この設計に沿って作り直す。
 
@@ -70,23 +70,25 @@ Strudel 標準の Cyclist は独自のクロックで動くため使わない。
 
 ### 4. StrudelDeck（`src/strudel/`）
 
-UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように扱えるよう、共通インターフェイス `IDeck` を実装する。
+UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように扱えるよう、共通インターフェイス `CodeDeck`（`src/CodeDeck.ts`）を実装する。`WavenerdDeck` もそのまま `CodeDeck` として扱える。
 
 - `compile(code)`
   - `repl.evaluate(code, false)` を呼ぶ。
   - 評価結果（`evaluate()` の戻り値のパターン。エラー時は `undefined`）を `staged` に保存する。`autostart=false` なら Cyclist は起動しないので、`scheduler.setPattern` の上書きは不要（M0 で確認）。
   - 状態は `compiling` → `ready` と遷移する（エラー時は `none` にして `error` を発行）。
-- `applyCue()`：状態を `applying` にし、次の小節頭で反映する。
+- `applyCue()`：状態を `applying` にし、次の小節頭で反映する。状態が `ready` のときだけ受け付ける。差し替え位置は「まだ発音予定を出していない最初の cycle 境界」（`ceil(prevEnd)`）。差し替える瞬間に最新の `staged` を取り出すので、`applying` 中に再コンパイルすると新しい方が反映される（GLSL デッキと同じ）。スケジューラが止まっているとき（GLSL モード中、または hostDeck の一時停止中）は即時に反映する。
 - `applyCueImmediately()`：即時に反映する。
 - 巻き戻し時は、GLSL デッキと同じく `staged` を即時反映する。
-- `setParam(name, value)`：knob ストアを更新する。
+- `setParam(name, value)`：knob ストアを更新する（M3）。
+- 空のコードは `silence` として扱う（`repl.evaluate` は空文字で例外を投げるため）。
+- `active`：スケジューラの動作/停止。GLSL モードの間は止める（superdough は無音でも発音ごとにノードを作るため）。
 - イベント名・状態名は wavenerd-deck に合わせる：`changeCueStatus`、`error`、`'none' | 'compiling' | 'ready' | 'applying'`。
 
-### 5. 初期化（`src/strudel/initStrudel.ts`）
+### 5. 初期化（`src/strudel/StrudelEngine.ts`）
 
 - `setAudioContext(audio)` で、wavenerd と同じ AudioContext を使う。
 - `evalScope(controls, mini, tonal, webaudio, { knob0..knob7 })` を実行する。
-- `prebake` と同じ音源をロードする：シンセ、ZZFX、soundfonts、`strudel.b-cdn.net` の piano / VCSL / drum machines / Dirt-Samples 抜粋など。
+- `prebake` と同じ音源をロードする（`src/strudel/prebake.ts`、strudel.cc から移植）。評価の準備（`ready`）はロード完了を待たない。シンセ、ZZFX、soundfonts、`strudel.b-cdn.net` の piano / VCSL / drum machines / Dirt-Samples 抜粋など。
 - `repl.evaluate()` は evalScope のグローバルを書き換えるので、全デッキ共通の Promise キューで直列化する。
 - 各 repl には異なる `id` を渡す。
 
@@ -101,8 +103,10 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 
 ### 7. UI
 
-- デッキごとにモード切り替え（GLSL / Strudel）を置く。
-- コードの保存先はモードごとに分ける。
+- デッキごとにモード切り替え（GLSL / Strudel）を置く。ステータスバーの `GLSL` / `Strudel` 表示をクリックして切り替える。モードは設定（`deckAMode` / `deckBMode`）に保存する。
+- 各スロットで GLSL 用と Strudel 用の `Deck` を両方マウントしておき、表示だけ切り替える。再マウントすると未保存の編集が消え、コードも再適用されて音が飛ぶため。
+- コードの保存先はモードごとに分ける：`decks/a.glsl` / `decks/a.strudel.js`、メモリは `memories/N.glsl` / `memories/strudel/N.js`。
+- Strudel モードではシェーダーライブラリ（`Mod-P`）を開かない。
 - Strudel モードのエディタは JavaScript 言語モード＋既存テーマにする（見た目の作り込みは後回し）。
 - キー操作・状態表示は GLSL デッキと共通。
 
@@ -122,16 +126,16 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
    - `DeckOutputController` によるルーティング
    - AudioContext 時刻の対応（GLSL の小節頭と Strudel の cycle 頭が揃うか）
    - 2 つの repl の同時動作
-2. **M1 音の経路**：ライセンス変更、`initStrudel`、`DeckSourceSwitch`、`StrudelDeck` の最小実装（まずは Cyclist のまま）。
-3. **M2 同期と cue**：`StrudelScheduler` への置き換え、`Mod-S` / `Mod-R` / `Shift-Mod-R`。
+2. **M1 音の経路＋最低限の UI**：ライセンス変更、`StrudelEngine`、`DeckSourceSwitch`、`StrudelDeck`。M0 で `StrudelScheduler` が動いたので Cyclist は経由せず、M2 の同期と cue（`Mod-S` / `Mod-R` / `Shift-Mod-R`）もここで入れる。試せるように M4 のモード切り替えとモードごとのコード保存も前倒しした。
+3. ~~**M2 同期と cue**~~：M1 に統合。
 4. **M3 knob**：`knob0`〜`knob7` と MIDI 連携。
-5. **M4 UI**：モード切り替え UI、モードごとのコード保存。
+5. **M4 UI の仕上げ**：切り替え UI の見た目、Strudel 用のエディタ補完・ハイライトなど。
 
 後回しにするもの：パターンのハイライト、widget（`_scope` など）、Strudel 用エディタテーマ、OPFS サンプルの Strudel からの利用。
 
 ## M0 スパイク結果（2026-09-30）
 
-コード：`src/strudel/`（`DeckOutputController` / `DeckClock` / `StrudelScheduler` は M1 以降でも使う）、`src/strudel/spike/`（使い捨て）。`?strudelSpike` を付けて起動すると `window.strudelSpike` から操作できる。
+コード：`src/strudel/`（`DeckOutputController` / `DeckClock` / `StrudelScheduler` は M1 以降でも使う）。スパイク本体は M1 で削除した。計測用のプローブは `src/strudel/dev/` に移し、`?strudelDev` を付けて起動すると `window.strudelDev` から使える。
 
 | 確認項目 | 結果 |
 |---|---|
@@ -147,11 +151,32 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - `initAudio()` は使わず、`loadWorklets()` を直接呼ぶ。
 - 開発時の注意：Claude Code のサンドボックスではポートの bind と pnpm のグローバルストアへの書き込みが禁止されているため、`pnpm dev` / `pnpm add` はサンドボックス外で実行する。
 
-未確認：ミキサーのチャンネル音量を 0 にしたとき、Strudel の音が完全に消えるか（耳で確認する）。
+耳での確認：ミキサーのチャンネル音量を 0 にすると Strudel の音は消える（ユーザー確認済み）。
+
+## M1 結果（2026-09-30）
+
+実際の経路（`StrudelDeck` → `DeckSourceSwitch` → ミキサー）で `?strudelDev` を使って確認した。
+
+| 確認項目 | 結果 |
+|---|---|
+| タイミング | GLSL デッキ A のクリックと Strudel デッキ B のクリックの差は +0.49ms（M0 と同じ） |
+| `Mod-R` | 新しいパターンは次の cycle 境界（整数）からちょうど始まる |
+| `applying` 中の再コンパイル | 差し替え時点で最新のパターンが反映される |
+| UI の往復 | Strudel モードで編集 → `Mod-S` → メモリ保存（`Shift-Mod-1`）→ リロード：モード・コードが復元され、GLSL 側のコードは変わらない。`Mod-1` で Strudel のメモリが戻る。読み込み後のコンソールエラーなし |
+| `Shift-Mod-R` / rewind | 即時に反映される。rewind 後は cycle 0 から始まる |
+| エラー | 構文エラー・実行時エラーは `error` に出て状態は `none`。成功時に `error: null` でクリアされる |
+| モード切り替え | ステータスバーから切り替えられる。Strudel 側のスケジューラは Strudel モードの間だけ動く |
+
+分かったこと・残課題：
+- `applyCue` 後に状態が `none` に戻るのは、実際に鳴る瞬間ではなく発音予定を出した瞬間（先読み分の約 0.1〜0.2 秒早い）。
+- Strudel コード内の `setcps` / `setcpm` は効かない（テンポは BeatManager に従うため）。`cpm()` は repl 内部の Cyclist の cps（0.5）を基準に計算するので、1 小節 = 1 cycle とずれる可能性がある。
+- tr909 などのサンプルはピークが 1.0 を超えることがある。音量はミキサーのゲインで調整する。
 
 ## 未決事項・リスク
 
+- **タブが裏にあるとき**：ブラウザはバックグラウンドのタブのタイマーを間引くので、`StrudelScheduler`（50ms 間隔、先読み 0.2 秒）は音が途切れる。GLSL デッキの更新ループも同じ制約を受ける。
+
 - **Strudel モード中のクロック**：BeatManager はデッキの `update()` が再生中に呼ばれている間しか進まない。Strudel モードでも裏で GLSL デッキを再生し続ける（出力はミュート）前提にする。その間も GPU 描画は続くので負荷を確認する。
-- **ブラウザ未検証**：ルーティングの回避策は superdough 1.3.0 のソースを読んで立てたもので、まだ動かしていない。更新で内部が変わると壊れるので、superdough はバージョンを固定する。
+- **superdough の更新**：ルーティングの回避策は superdough 1.3.0 の内部構造に依存している（M0 で動作確認済み）。更新で内部が変わると壊れるので、バージョンを固定する。
 - ~~**遅延の差**~~：M0 で確認済み（差は +0.49ms）。
 - **外部 CDN への依存**：音源は `strudel.b-cdn.net` と `felixroos.github.io` から取得するので、オフライン時の挙動を決める必要がある。

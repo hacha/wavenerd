@@ -6,11 +6,14 @@ import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
 import { type FullscreenManager } from '../FullscreenManager';
 import { type FrameEmitter } from '../FrameEmitter';
 import { type StorageManager } from '../StorageManager';
+import { type StrudelDeck } from '../strudel/StrudelDeck';
 
 export interface Stuff {
   deckA: WavenerdDeck;
   deckB: WavenerdDeck;
   hostDeck: WavenerdDeck;
+  strudelDeckA: StrudelDeck;
+  strudelDeckB: StrudelDeck;
   mixer: Mixer;
   recorder: Recorder;
   storageManager: StorageManager;

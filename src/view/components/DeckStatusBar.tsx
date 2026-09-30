@@ -10,6 +10,7 @@ import IconMute from '~icons/mdi/volume-mute';
 import IconPlay from '~icons/mdi/play';
 import { useSettings } from '../stores/hooks/useSettings';
 import { midiParamsAtom } from '../stores/atoms/midi';
+import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 
 // == constants ====================================================================================
 const iconCls = 'w-5 h-5 m-0.5';
@@ -187,6 +188,8 @@ function Message({
 
 // == component ====================================================================================
 export function DeckStatusBar({
+  mode,
+  onToggleMode,
   onCompile,
   onApply,
   onApplyImmediately,
@@ -199,6 +202,8 @@ export function DeckStatusBar({
   filterParamName,
   className,
 }: {
+  mode: DeckSourceMode;
+  onToggleMode: () => void;
   onCompile: () => void;
   onApply: () => void;
   onApplyImmediately: () => void;
@@ -234,15 +239,22 @@ export function DeckStatusBar({
         onJumpToLine={onJumpToLine}
       />
       {compileTimeEnabled && <CompileTime compileTimeAtom={compileTimeAtom} />}
+      <div
+        className="text-xs mx-1 cursor-pointer hover:opacity-80 active:opacity-60"
+        onClick={onToggleMode}
+        data-stalker="Switch the deck between GLSL and Strudel"
+      >
+        {mode === 'strudel' ? 'Strudel' : 'GLSL'}
+      </div>
       <IconBuild
         className={iconButtonCls}
         onClick={onCompile}
-        data-stalker="Compile the shader code (Ctrl+S)"
+        data-stalker="Compile the code (Ctrl+S)"
       />
       <IconApply
         className={iconButtonCls}
         onClick={handleClickApply}
-        data-stalker="Apply the compiled shader code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately"
+        data-stalker="Apply the compiled code (Ctrl+R)&#10;Shift+Ctrl+R to apply immediately"
       />
     </div>
   );

@@ -45,3 +45,13 @@ export const defaultCodeB = `vec2 mainAudio(vec4 time) {
   return dest;
 }
 `;
+
+export const defaultStrudelCodeA = `$: s("bd*4, ~ cp, hh*8").bank("tr909")
+`;
+
+export const defaultStrudelCodeB = `$: note("<c2 eb2 g1 bb1>*8")
+  .s("sawtooth")
+  .lpf(1200)
+  .decay(.1)
+  .sustain(0)
+`;

@@ -18,12 +18,17 @@ export type StrudelTrigger = (
 export class StrudelScheduler {
   public readonly audio: AudioContext;
   public readonly clock: DeckClock;
-  public pattern: Pattern | null = null;
 
   private readonly __onTrigger: StrudelTrigger;
   private readonly __lookahead: number;
+  private __pattern: Pattern | null = null;
+  private __next: { cycle: number; takePattern: () => Pattern | null } | null = null;
   private __prevEnd: number | null = null;
   private __intervalId: ReturnType<typeof setInterval> | null = null;
+
+  public get isRunning(): boolean {
+    return this.__intervalId != null;
+  }
 
   public constructor({
     audio,
@@ -55,12 +60,38 @@ export class StrudelScheduler {
     if (this.__intervalId == null) { return; }
     clearInterval(this.__intervalId);
     this.__intervalId = null;
+    this.__prevEnd = null;
+  }
+
+  /**
+   * Replace the pattern from the next tick. Cancels a pending {@link setPatternAtNextCycle}.
+   */
+  public setPattern(pattern: Pattern | null): void {
+    this.__pattern = pattern;
+    this.__next = null;
+  }
+
+  /**
+   * Replace the pattern at the next cycle boundary that has not been scheduled yet.
+   * Replaces immediately when nothing is being scheduled (stopped or the clock is not running).
+   *
+   * @param takePattern Called at the swap to get the new pattern, so the latest cue is applied.
+   *   Returning `null` keeps the current pattern.
+   */
+  public setPatternAtNextCycle(takePattern: () => Pattern | null): void {
+    if (this.__prevEnd == null) {
+      this.__swap(takePattern);
+      return;
+    }
+
+    // haps until `prevEnd` are already dispatched
+    this.__next = { cycle: Math.ceil(this.__prevEnd), takePattern };
   }
 
   public tick(): void {
-    const { audio, clock, pattern } = this;
+    const { audio, clock } = this;
 
-    if (!clock.isRunning || pattern == null) {
+    if (!clock.isRunning) {
       this.__prevEnd = null;
       return;
     }
@@ -71,6 +102,31 @@ export class StrudelScheduler {
     if (end <= begin) { return; }
     this.__prevEnd = end;
 
+    const next = this.__next;
+    if (next != null && next.cycle < end) {
+      const swap = Math.max(begin, next.cycle);
+      this.__query(this.__pattern, begin, swap, now);
+
+      this.__swap(next.takePattern);
+
+      this.__query(this.__pattern, swap, end, now);
+    } else {
+      this.__query(this.__pattern, begin, end, now);
+    }
+  }
+
+  private __swap(takePattern: () => Pattern | null): void {
+    this.__next = null;
+    const pattern = takePattern();
+    if (pattern != null) {
+      this.__pattern = pattern;
+    }
+  }
+
+  private __query(pattern: Pattern | null, begin: number, end: number, now: number): void {
+    if (pattern == null || end <= begin) { return; }
+
+    const { clock } = this;
     const cps = clock.cps;
     const haps: Hap[] = pattern.queryArc(begin, end, { _cps: cps, cyclist: 'cyclist' });
 
