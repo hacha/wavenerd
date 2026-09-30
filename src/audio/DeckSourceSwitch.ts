@@ -19,11 +19,22 @@ export class DeckSourceSwitch {
   }
 
   public set mode(mode: DeckSourceMode) {
+    this.setMode(mode);
+  }
+
+  /**
+   * Switch the source at the given AudioContext time. Replaces a switch that is scheduled but not started yet.
+   */
+  public setMode(mode: DeckSourceMode, time?: number): void {
     this.__mode = mode;
 
     const now = this.audio.currentTime;
-    this.inputGlsl.gain.setTargetAtTime(mode === 'glsl' ? 1.0 : 0.0, now, FADE_TIME_CONSTANT);
-    this.inputStrudel.gain.setTargetAtTime(mode === 'strudel' ? 1.0 : 0.0, now, FADE_TIME_CONSTANT);
+    const startTime = Math.max(now, time ?? now);
+
+    this.inputGlsl.gain.cancelScheduledValues(now);
+    this.inputStrudel.gain.cancelScheduledValues(now);
+    this.inputGlsl.gain.setTargetAtTime(mode === 'glsl' ? 1.0 : 0.0, startTime, FADE_TIME_CONSTANT);
+    this.inputStrudel.gain.setTargetAtTime(mode === 'strudel' ? 1.0 : 0.0, startTime, FADE_TIME_CONSTANT);
   }
 
   public constructor(audio: AudioContext) {

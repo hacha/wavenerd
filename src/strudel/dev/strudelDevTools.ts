@@ -13,9 +13,17 @@
  * ```js
  * await strudelDev.knobCheck(); // passes when each deck reads its own knob0
  * ```
+ *
+ * Load check: cost of the GLSL decks, including the one behind a Strudel deck.
+ *
+ * ```js
+ * await strudelDev.deckA.compile(strudelDev.heavyGlsl(1000)); strudelDev.deckA.applyCueImmediately();
+ * await strudelDev.loadCheck(10); // update() times in ms, underruns, scheduler tick gaps, long tasks
+ * ```
  */
 
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
+import { type DeckSourceSwitch } from '../../audio/DeckSourceSwitch';
 import { type StrudelDeck } from '../StrudelDeck';
 import onsetProbeProcessorUrl from './OnsetProbeProcessor.js?url';
 
@@ -26,6 +34,24 @@ export const CLICK_GLSL = `vec2 mainAudio(vec4 time) {
 
 export const CLICK_STRUDEL = 'note("c3").s("square").attack(0).decay(0.05).sustain(0)';
 
+export const SILENT_GLSL = `vec2 mainAudio(vec4 time) {
+  return vec2(0.0);
+}
+`;
+
+/** A shader that sums `n` sines per sample. Its cost grows with `n`. */
+export function heavyGlsl(n: number): string {
+  return `vec2 mainAudio(vec4 time) {
+  vec2 dest = vec2(0.0);
+  for (int i = 0; i < ${Math.floor(n)}; i++) {
+    float f = float(i + 1);
+    dest += sin(6.2831853 * 55.0 * f * time.z + vec2(0.0, f)) / f;
+  }
+  return 0.1 * dest;
+}
+`;
+}
+
 export const CODE_KNOB = 's("bd*4").lpf(knob0.range(200, 8000))';
 
 export async function installStrudelDevTools({
@@ -34,12 +60,16 @@ export async function installStrudelDevTools({
   deckB,
   strudelDeckA,
   strudelDeckB,
+  sourceSwitchA,
+  sourceSwitchB,
 }: {
   audio: AudioContext;
   deckA: WavenerdDeck;
   deckB: WavenerdDeck;
   strudelDeckA: StrudelDeck;
   strudelDeckB: StrudelDeck;
+  sourceSwitchA: DeckSourceSwitch;
+  sourceSwitchB: DeckSourceSwitch;
 }) {
   await audio.audioWorklet.addModule(onsetProbeProcessorUrl);
 
@@ -133,18 +163,108 @@ export async function installStrudelDevTools({
     return { pass, first, second };
   }
 
+  function summarize(values: number[]) {
+    if (values.length === 0) { return null; }
+    const sorted = [...values].sort((a, b) => a - b);
+    const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+    const round = (v: number) => Math.round(v * 100.0) / 100.0;
+    return {
+      count: sorted.length,
+      mean: round(sorted.reduce((sum, v) => sum + v, 0) / sorted.length),
+      p50: round(at(0.5)),
+      p95: round(at(0.95)),
+      max: round(sorted[sorted.length - 1]),
+    };
+  }
+
+  /**
+   * Measure for `seconds`: wall time of each `WavenerdDeck.update()` that rendered (ms), underruns,
+   * gaps between ticks of the Strudel schedulers (ms), and long tasks of the main thread (ms).
+   * Reads private fields.
+   */
+  async function loadCheck(seconds = 10) {
+    const glslDecks = [deckA, deckB] as const;
+    const updates: number[][] = [[], []];
+    const underruns = [0, 0];
+    const restores: (() => void)[] = [];
+
+    glslDecks.forEach((deck, i) => {
+      let rendered = false;
+      const onUpdate = () => { rendered = true; };
+      const onUnderrun = () => { underruns[i]++; };
+      deck.on('update', onUpdate);
+      deck.on('underrun', onUnderrun);
+
+      const original = deck.update;
+      deck.update = async function (this: WavenerdDeck) {
+        const begin = performance.now();
+        rendered = false;
+        await original.call(this);
+        if (rendered) { updates[i].push(performance.now() - begin); }
+      };
+
+      restores.push(() => {
+        deck.update = original;
+        deck.off('update', onUpdate);
+        deck.off('underrun', onUnderrun);
+      });
+    });
+
+    const tickGaps: number[][] = [[], []];
+    [strudelDeckA, strudelDeckB].forEach((deck, i) => {
+      const scheduler = (deck as any).__scheduler;
+      const original = scheduler.tick;
+      let last: number | null = null;
+      scheduler.tick = function () {
+        const now = performance.now();
+        if (last != null) { tickGaps[i].push(now - last); }
+        last = now;
+        original.call(this);
+      };
+      restores.push(() => { scheduler.tick = original; });
+    });
+
+    const longTasks: number[] = [];
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) { longTasks.push(entry.duration); }
+    });
+    observer.observe({ entryTypes: ['longtask'] });
+    restores.push(() => observer.disconnect());
+
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000.0));
+    restores.forEach((restore) => restore());
+
+    return {
+      seconds,
+      // audio covered by one render; an update must stay well below this
+      renderMs: Math.round(deckA.framesPerRender / deckA.sampleRate * 100000.0) / 100.0,
+      updateA: summarize(updates[0]),
+      updateB: summarize(updates[1]),
+      underrunsA: underruns[0],
+      underrunsB: underruns[1],
+      tickGapA: summarize(tickGaps[0]),
+      tickGapB: summarize(tickGaps[1]),
+      longTasks: summarize(longTasks),
+    };
+  }
+
   const handle = {
     audio,
     deckA,
     deckB,
     strudelDeckA,
     strudelDeckB,
+    sourceSwitchA,
+    sourceSwitchB,
     onsets,
     probe,
     clearOnsets,
     timingStats,
     setupTimingCheck,
     knobCheck,
+    loadCheck,
+    heavyGlsl,
+    SILENT_GLSL,
     CLICK_GLSL,
     CLICK_STRUDEL,
   };
