@@ -379,7 +379,7 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - 時刻は `DeckClock` の cycle（`audio.currentTime - outputLatency`、ハイライトと同じ）。停止中は最後の位置で止まる（`DeckClock.displayCycleAt`）。毎フレーム、パターンを描画範囲で `queryArc` し、`@strudel/draw` の描画関数（`__pianoroll`、`pitchwheel`、punchcard / spiral の painter）や `@strudel/webaudio` の `drawTimeScope` / `drawFrequencyScope` で描く。`drawSpectrum` は export されていないので写した。
 - scope 系は `pattern.analyze(id)` を返し、superdough の analyser（id ごとのグローバル）に音を流す。id はデッキごとに違う（インライン：`deckA_widget__scope_0`、背景：`deckA_scope_0`）。
 - エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
-- 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は REPL と同じ 100%。
+- 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は 80%（REPL は 100%）。様子見中の値。
 - 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
 - Strudel デッキは、アプリのテーマによらず REPL の標準テーマ `strudelTheme`（`@strudel/codemirror` 1.2.6）の配色にした（`src/view/codemirror/strudelTheme.ts`）。デッキの背景 `#222222`、構文色、描画の色（`foreground` `#ffffff`）が REPL と同じ。パネルや補完などのテーマにない部分は wavenerd の構造に `strudelTheme` の色を入れた。背景描画の上でも読めるよう、REPL と同じくトークンの後ろに `lineBackground`（`#22222299`、strudel.cc の CSS の `.cm-line > *`）を敷き、現在行は `lineHighlight`（`#00000050`）で暗くする。GLSL デッキは変えない。mini-notation の中の色分け（M4）もやめ、REPL と同じく文字列全体を緑 1 色にした。
 
