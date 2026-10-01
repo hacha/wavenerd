@@ -169,7 +169,7 @@ export const Deck = forwardRef(({
       />
       {deck instanceof StrudelDeck && (
         <StrudelDeckBackground
-          className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none"
+          className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none opacity-80"
           deck={deck}
         />
       )}

@@ -5,7 +5,7 @@ import { EventEmittable } from '../utils/EventEmittable';
 import { DeckClock } from './DeckClock';
 import { prebake } from './prebake';
 import { UserSamples } from './UserSamples';
-import { registerStrudelVisuals } from './StrudelVisuals';
+import { getStrudelDrawContext, registerStrudelVisuals } from './StrudelVisuals';
 
 const { evalScope, Pattern } = coreModule;
 
@@ -155,6 +155,9 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
       webaudioModule,
     ];
     await evalScope(...modules);
+
+    // `evalScope` made the original a global. Code gets it from there
+    Object.assign(globalThis, { getDrawContext: getStrudelDrawContext });
 
     this.__completionWords = createCompletionWords(modules);
 

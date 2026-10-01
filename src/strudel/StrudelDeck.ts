@@ -7,7 +7,7 @@ import { EventEmittable } from '../utils/EventEmittable';
 import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
 import { STRUDEL_KNOB_NAMES, type StrudelEngine } from './StrudelEngine';
-import { type StrudelVisual, collectStrudelVisuals, placeStrudelVisuals } from './StrudelVisuals';
+import { type StrudelDrawCanvases, type StrudelVisual, collectStrudelVisuals, placeStrudelVisuals } from './StrudelVisuals';
 
 const { getTrigger, ref, silence } = coreModule;
 const { setSuperdoughAudioController, webaudioOutput, webaudioRepl } = webaudioModule;
@@ -48,11 +48,18 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
   private readonly __scheduler: StrudelScheduler;
   private readonly __repl: any;
-  private __staged: { pattern: Pattern; codeId: number; visuals: StrudelVisual[] } | null = null;
+  private __staged: {
+    pattern: Pattern;
+    codeId: number;
+    visuals: StrudelVisual[];
+    drawCanvases: StrudelDrawCanvases;
+  } | null = null;
+
   private __lastEvalError: unknown = null;
   private __lastEvalMiniLocations: [number, number][] = [];
   private __lastEvalWidgets: any[] = [];
   private __activeVisuals: StrudelVisual[] = [];
+  private __activeDrawCanvases: StrudelDrawCanvases = new Map();
   private __compiledCode: StrudelCompiledCode | null = null;
   private __lastCodeId = 0;
   private __activeCodeId = 0;
@@ -105,6 +112,13 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
    */
   public get activeVisuals(): readonly StrudelVisual[] {
     return this.__activeVisuals;
+  }
+
+  /**
+   * The canvases that the code that is playing got from `getDrawContext`.
+   */
+  public get activeDrawCanvases(): StrudelDrawCanvases {
+    return this.__activeDrawCanvases;
   }
 
   /**
@@ -228,6 +242,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     let error: unknown = null;
     let miniLocations: [number, number][] = [];
     let visuals: StrudelVisual[] = [];
+    let drawCanvases: StrudelDrawCanvases = new Map();
 
     if (code.trim() === '') {
       // repl.evaluate throws on empty code
@@ -240,13 +255,14 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
         this.__lastEvalError = null;
         this.__lastEvalMiniLocations = [];
         this.__lastEvalWidgets = [];
-        const { result, visuals: collected } = await collectStrudelVisuals(
+        const { result, visuals: collected, drawCanvases: collectedCanvases } = await collectStrudelVisuals(
           this.id,
           () => this.__repl.evaluate(code, false),
         );
         error = this.__lastEvalError;
         miniLocations = this.__lastEvalMiniLocations;
         visuals = placeStrudelVisuals(collected, this.__lastEvalWidgets);
+        drawCanvases = collectedCanvases;
         return result ?? null;
       });
     }
@@ -260,7 +276,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
     const codeId = ++this.__lastCodeId;
     this.__compiledCode = { id: codeId, code, miniLocations, visuals };
-    this.__staged = { pattern, codeId, visuals };
+    this.__staged = { pattern, codeId, visuals, drawCanvases };
     this.__setCueStatus('ready');
     this.__emit('error', { error: null });
   }
@@ -278,6 +294,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       this.__staged = null;
       this.__activeCodeId = staged.codeId;
       this.__activeVisuals = staged.visuals;
+      this.__activeDrawCanvases = staged.drawCanvases;
       this.__setCueStatus('none');
       return staged.pattern;
     });
@@ -291,6 +308,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     this.__staged = null;
     this.__activeCodeId = staged.codeId;
     this.__activeVisuals = staged.visuals;
+    this.__activeDrawCanvases = staged.drawCanvases;
     this.__setCueStatus('none');
   }
 

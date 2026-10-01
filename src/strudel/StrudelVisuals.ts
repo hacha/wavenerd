@@ -14,8 +14,34 @@ type Painter = (ctx: CanvasRenderingContext2D, time: number, haps: Hap[], drawTi
 /**
  * The drawings of Strudel, such as `pianoroll`.
  * `fscope` has no inline form, and `wordfall` is a `punchcard`.
+ * `draw` is `.draw(fn)`, which draws by itself on the canvases of `getDrawContext`.
  */
-export type StrudelVisualKind = 'pianoroll' | 'punchcard' | 'spiral' | 'scope' | 'fscope' | 'spectrum' | 'pitchwheel';
+export type StrudelVisualKind = StrudelDrawingKind | 'draw';
+
+/** The drawings that the deck draws on a canvas of its own. */
+type StrudelDrawingKind = 'pianoroll' | 'punchcard' | 'spiral' | 'scope' | 'fscope' | 'spectrum' | 'pitchwheel';
+
+/**
+ * State of a `.draw(fn, { lookbehind, lookahead })`, like `Pattern.prototype.draw` of `@strudel/draw`.
+ */
+interface StrudelDrawState {
+  fn: (haps: Hap[], time: number, end: number, pattern: Pattern) => void;
+  lookbehind: number;
+  lookahead: number;
+
+  /** Haps with an onset that are in view. */
+  haps: Hap[];
+
+  /** The end of the last query. `null` until the first frame after the code is applied. */
+  last: number | null;
+}
+
+/**
+ * Canvases that `getDrawContext(id)` gives to one compiled code of a deck, by id.
+ * Applying the code puts them behind the code, and applying the next one removes them,
+ * like the Strudel REPL clears its canvas on each evaluation.
+ */
+export type StrudelDrawCanvases = Map<string, HTMLCanvasElement>;
 
 /**
  * A drawing that the code of a deck asks for.
@@ -42,6 +68,9 @@ export interface StrudelVisual {
 
   /** For `punchcard` and `spiral`, which are drawn by painters of Strudel. */
   painter?: Painter;
+
+  /** For `draw`. */
+  draw?: StrudelDrawState;
 }
 
 /**
@@ -49,11 +78,12 @@ export interface StrudelVisual {
  */
 const PAINTER_DRAW_TIME: [number, number] = [-2, 2];
 
-const INLINE_KINDS: StrudelVisualKind[] = ['pianoroll', 'punchcard', 'spiral', 'scope', 'spectrum', 'pitchwheel'];
+const INLINE_KINDS: StrudelDrawingKind[] = ['pianoroll', 'punchcard', 'spiral', 'scope', 'spectrum', 'pitchwheel'];
 
 interface VisualCollector {
   deckId: string;
   visuals: StrudelVisual[];
+  drawCanvases: StrudelDrawCanvases;
 }
 
 /** Set while a deck evaluates code. Evaluations run one by one (`StrudelEngine.enqueueEvaluation`). */
@@ -65,12 +95,12 @@ let collector: VisualCollector | null = null;
 export async function collectStrudelVisuals<T>(
   deckId: string,
   evaluate: () => Promise<T>,
-): Promise<{ result: T; visuals: StrudelVisual[] }> {
-  const current: VisualCollector = { deckId, visuals: [] };
+): Promise<{ result: T; visuals: StrudelVisual[]; drawCanvases: StrudelDrawCanvases }> {
+  const current: VisualCollector = { deckId, visuals: [], drawCanvases: new Map() };
   collector = current;
   try {
     const result = await evaluate();
-    return { result, visuals: current.visuals };
+    return { result, visuals: current.visuals, drawCanvases: current.drawCanvases };
   } finally {
     collector = null;
   }
@@ -108,7 +138,7 @@ export function registerStrudelVisuals(): void {
   // the painters of Strudel. take them before replacing the methods
   const spiral = Pattern.prototype.spiral;
 
-  const methods: Record<StrudelVisualKind, (pattern: Pattern, visual: StrudelVisual) => Pattern> = {
+  const methods: Record<StrudelDrawingKind, (pattern: Pattern, visual: StrudelVisual) => Pattern> = {
     pianoroll: (pattern) => pattern,
     punchcard: (pattern, visual) => {
       visual.painter = getPunchcardPainter(visual.options);
@@ -125,7 +155,7 @@ export function registerStrudelVisuals(): void {
     pitchwheel: (pattern) => pattern,
   };
 
-  for (const kind of Object.keys(methods) as StrudelVisualKind[]) {
+  for (const kind of Object.keys(methods) as (keyof typeof methods)[]) {
     Pattern.prototype[kind] = function (options?: Record<string, any>) {
       return addVisual(this, kind, null, options ?? {}, methods[kind]);
     };
@@ -133,6 +163,15 @@ export function registerStrudelVisuals(): void {
 
   // `scope` is a copy of the original `tscope`
   Pattern.prototype.tscope = Pattern.prototype.scope;
+
+  // unlike the original, nothing happens until the code is applied: no query, no `getTime()`
+  Pattern.prototype.draw = function (fn: StrudelDrawState['fn'], options?: Record<string, any>) {
+    const { lookbehind = 0, lookahead = 0 } = options ?? {};
+    return addVisual(this, 'draw', null, options ?? {}, (pattern, visual) => {
+      visual.draw = { fn, lookbehind: Math.abs(lookbehind), lookahead, haps: [], last: null };
+      return pattern;
+    });
+  };
 
   for (const kind of INLINE_KINDS) {
     // the transpiler passes the id of the widget as the first argument
@@ -196,6 +235,43 @@ function addVisual(
   return result;
 }
 
+// == getDrawContext ===============================================================================
+/** The canvases of the code whose `.draw` callback is running. */
+let drawingCanvases: StrudelDrawCanvases | null = null;
+
+/** The `pixelRatio` option of each canvas of `getDrawContext`. */
+const drawCanvasRatios = new WeakMap<HTMLCanvasElement, number>();
+
+/**
+ * Replaces `getDrawContext` of `@strudel/draw`, which gives a canvas over the whole page (`#test-canvas`).
+ * Gives a canvas of the code that is evaluated, or whose `.draw` callback is running.
+ * Two decks may use the same id. Set it as a global after `evalScope`.
+ */
+export function getStrudelDrawContext(
+  id = 'test-canvas',
+  options?: { contextType?: string; pixelated?: boolean; pixelRatio?: number },
+): RenderingContext | null {
+  const { contextType = '2d', pixelated = false, pixelRatio } = options ?? {};
+  // a callback first: frames run while another code is evaluated, e.g. during `await samples(…)`
+  const canvases = drawingCanvases ?? collector?.drawCanvases;
+
+  let canvas = canvases?.get(id);
+  if (canvas == null) {
+    canvas = document.createElement('canvas');
+    canvas.className = 'absolute inset-0 w-full h-full';
+    if (pixelated) {
+      canvas.style.imageRendering = 'pixelated';
+    }
+    if (pixelRatio != null) {
+      drawCanvasRatios.set(canvas, pixelRatio);
+    }
+    // outside of any code, the canvas is never shown
+    canvases?.set(id, canvas);
+  }
+
+  return canvas.getContext(contextType, { willReadFrequently: true });
+}
+
 // == drawing ======================================================================================
 /**
  * Colors of the drawings that the options do not set, like the theme of the Strudel REPL. Shared by every deck.
@@ -217,7 +293,7 @@ const spectrumFrames = new WeakMap<HTMLCanvasElement, ImageData>();
  * Make the backing store of the canvas match its size on the page.
  */
 export function fitStrudelCanvas(canvas: HTMLCanvasElement): void {
-  const ratio = window.devicePixelRatio;
+  const ratio = drawCanvasRatios.get(canvas) ?? window.devicePixelRatio;
   const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
   const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
   if (canvas.width !== width || canvas.height !== height) {
@@ -247,6 +323,50 @@ export function drawStrudelVisual(
       failedVisuals.add(visual);
       console.warn(`[strudel] failed to draw ${visual.kind}`, error);
     }
+  }
+}
+
+/**
+ * Run the callback of a `.draw` at the given cycle, with the canvases of its code for `getDrawContext`.
+ */
+export function runStrudelDraw(
+  visual: StrudelVisual,
+  canvases: StrudelDrawCanvases,
+  cycle: number,
+  cps: number,
+): void {
+  const state = visual.draw;
+  if (state == null) { return; }
+
+  const { lookbehind, lookahead } = state;
+  const end = cycle + lookahead;
+
+  // the first frame, or the clock went back (rewind)
+  if (state.last == null || end < state.last) {
+    state.haps = [];
+    state.last = null;
+  }
+
+  // same as the original: from the last frame, but at most 0.1 cycles, since a hidden tab draws slowly
+  const begin = state.last == null ? cycle : Math.max(state.last, end - 0.1);
+  state.haps = state.haps.filter((hap) => hap.isInNearPast(lookbehind, cycle));
+  if (begin < end) {
+    state.haps = state.haps.concat(
+      visual.pattern.queryArc(begin, end, { _cps: cps }).filter((hap: Hap) => hap.hasOnset()),
+    );
+  }
+  state.last = end;
+
+  drawingCanvases = canvases;
+  try {
+    state.fn(state.haps, cycle, end, visual.pattern);
+  } catch (error) {
+    if (!failedVisuals.has(visual)) {
+      failedVisuals.add(visual);
+      console.warn('[strudel] failed to run draw', error);
+    }
+  } finally {
+    drawingCanvases = null;
   }
 }
 
