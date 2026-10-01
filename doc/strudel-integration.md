@@ -384,11 +384,13 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 
 ### 確認結果（Chrome、AudioContext 停止中に `frameEmitter.__emit('update', …)` で手動でフレームを進めて確認）
 
-- 6 種のインライン描画と背景の `.pianoroll()` が、どれも空でない canvas に描かれる。`#test-canvas` は作られない
+- インラインの `_pianoroll` / `_scope` / `_spiral` / `_pitchwheel` / `_punchcard` と、背景の `.pianoroll()` が、どれも空でない canvas に描かれる。`#test-canvas` は作られない
 - `_scope` の analyser は `deckA_widget__scope_0` で作られ、波形が描かれる
 - 上に 2 行挿入すると、widget も 2 行下にずれる
 - compile しただけでは描画は変わらず、反映で新しいコードの描画に変わる。背景の canvas も消える
 - 停止中も例外を出さない
+
+未確認：`_spectrum`、`.fscope()`（analyser がないときの経路を含む）、背景の `.scope()` / `.spiral()` / `.punchcard()` / `wordfall`、`all(pianoroll)`、次の小節での反映（`applyCue`）、デッキ B、見えているタブで音と同期して動くか。
 
 ### 制限
 
