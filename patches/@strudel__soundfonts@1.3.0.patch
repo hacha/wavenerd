@@ -1,0 +1,114 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f973c758dbb690aae35bb570b91e90d68f24f505..8e2de0ad8b3e7635b4d68561714a44effff5e6b8 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1814,8 +1814,13 @@ let defaultSoundfontUrl = "https://felixroos.github.io/webaudiofontdata/sound",
+ function setSoundfontUrl(e) {
+   soundfontUrl = e;
+ }
+-let loadCache = {};
++let loadCache = {}, loadCacheFailedAt = {};
+ async function loadFont(name) {
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (loadCacheFailedAt[name] !== undefined && Date.now() - loadCacheFailedAt[name] > 5000) {
++    delete loadCache[name];
++    delete loadCacheFailedAt[name];
++  }
+   if (loadCache[name])
+     return loadCache[name];
+   const load = async () => {
+@@ -1823,7 +1828,11 @@ async function loadFont(name) {
+     let [_, data] = preset.split("={");
+     return eval("{" + data);
+   };
+-  return loadCache[name] = load(), loadCache[name];
++  loadCache[name] = load();
++  loadCache[name].catch(() => {
++    loadCacheFailedAt[name] = Date.now();
++  });
++  return loadCache[name];
+ }
+ async function getFontBufferSource(e, l, s) {
+   let { note: f = "c3", freq: a } = l, r;
+@@ -1840,9 +1849,14 @@ async function getFontBufferSource(e, l, s) {
+   const u = i.originalPitch - 100 * i.coarseTune - i.fineTune, o = 1 * Math.pow(2, (100 * r - u) / 1200);
+   return G.playbackRate.value = o, i.loopStart > 1 && i.loopStart < i.loopEnd && (G.loop = !0, G.loopStart = i.loopStart / i.sampleRate, G.loopEnd = i.loopEnd / i.sampleRate), G;
+ }
+-let bufferCache = {};
++let bufferCache = {}, bufferCacheFailedAt = {};
+ async function getFontPitch(e, l, s) {
+   const f = `${e}:::${l}`;
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (bufferCacheFailedAt[f] !== undefined && Date.now() - bufferCacheFailedAt[f] > 5000) {
++    delete bufferCache[f];
++    delete bufferCacheFailedAt[f];
++  }
+   if (bufferCache[f])
+     return bufferCache[f];
+   const a = async () => {
+@@ -1857,7 +1871,11 @@ async function getFontPitch(e, l, s) {
+       throw new Error(`no soundfont buffer found for preset ${e}, pitch: ${l}`);
+     return { buffer: i, zone: n };
+   };
+-  return bufferCache[f] = a(), bufferCache[f];
++  bufferCache[f] = a();
++  bufferCache[f].catch(() => {
++    bufferCacheFailedAt[f] = Date.now();
++  });
++  return bufferCache[f];
+ }
+ function findZone(e, l) {
+   return e.find((s) => s.keyRangeLow <= l && s.keyRangeHigh + 1 >= l);
+diff --git a/fontloader.mjs b/fontloader.mjs
+index b4ae59828244ce7f832e89467f4c412e2aa32695..e232b37247ea507636843678d53bddc8cc49c8e6 100644
+--- a/fontloader.mjs
++++ b/fontloader.mjs
+@@ -19,7 +19,13 @@ export function setSoundfontUrl(value) {
+ }
+ 
+ let loadCache = {};
++let loadCacheFailedAt = {};
+ async function loadFont(name) {
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (loadCacheFailedAt[name] !== undefined && Date.now() - loadCacheFailedAt[name] > 5000) {
++    delete loadCache[name];
++    delete loadCacheFailedAt[name];
++  }
+   if (loadCache[name]) {
+     return loadCache[name];
+   }
+@@ -31,6 +37,9 @@ async function loadFont(name) {
+     return eval('{' + data);
+   };
+   loadCache[name] = load();
++  loadCache[name].catch(() => {
++    loadCacheFailedAt[name] = Date.now();
++  });
+   return loadCache[name];
+ }
+ 
+@@ -71,8 +80,14 @@ export async function getFontBufferSource(name, value, ac) {
+ }
+ 
+ let bufferCache = {};
++let bufferCacheFailedAt = {};
+ export async function getFontPitch(name, pitch, ac) {
+   const key = `${name}:::${pitch}`;
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (bufferCacheFailedAt[key] !== undefined && Date.now() - bufferCacheFailedAt[key] > 5000) {
++    delete bufferCache[key];
++    delete bufferCacheFailedAt[key];
++  }
+   if (bufferCache[key]) {
+     return bufferCache[key];
+   }
+@@ -93,6 +108,9 @@ export async function getFontPitch(name, pitch, ac) {
+     return { buffer, zone };
+   };
+   bufferCache[key] = load(); // dont await here to cache promise immediately!
++  bufferCache[key].catch(() => {
++    bufferCacheFailedAt[key] = Date.now();
++  });
+   return bufferCache[key];
+ }
+ 

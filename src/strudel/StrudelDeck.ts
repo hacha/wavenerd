@@ -139,7 +139,11 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       // `patches/superdough@1.3.0.patch` makes bus modulation (`bmod`) use it too
       setSuperdoughAudioController(controller);
       const name = soundName(hap.value);
-      return webaudioOutput(hap, deadline, duration, cps, t).catch((error: unknown) => {
+      return webaudioOutput(hap, deadline, duration, cps, t).then((result: unknown) => {
+        // the patches make superdough fetch a failed file again after a while
+        engine.removeFailedFile(name);
+        return result;
+      }, (error: unknown) => {
         if (isLoadError(error)) {
           engine.addFailedFile(name);
         }

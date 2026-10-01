@@ -1,8 +1,58 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index da81977b3a8f9cb8af08440c61990437041f69b7..8c21b8a3268d728412a5f54145a0df3c2a5543d2 100644
+index da81977b3a8f9cb8af08440c61990437041f69b7..f0f1e5c3910a77914f8e489798934f82f52f304c 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1953,7 +1953,7 @@ const No = async (e, t, n, o = 0.5, a = 0.5) => {
+@@ -842,7 +842,7 @@ const Qn = (e, t) => {
+     0,
+     e.begin
+   ), Z.push(h, u, y), { modulator: W, toCleanup: Z };
+-}, yt = {}, tt = {}, Eo = (e) => yt[e];
++}, yt = {}, tt = {}, ttFailedAt = {}, Eo = (e) => yt[e];
+ function qn(e, t) {
+   var n = 1024;
+   if (e < n) return e + " B";
+@@ -873,7 +873,8 @@ const $n = async (e, t, n) => {
+   return { bufferSource: s, offset: h, bufferDuration: r, playbackDuration: m, sliceDuration: G };
+ }, dt = (e, t, n, o = 0) => {
+   const a = n ? `sound "${n}:${o}"` : "sample";
+-  if (e = e.replace("#", "%23"), !tt[e]) {
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (e = e.replace("#", "%23"), ttFailedAt[e] !== void 0 && Date.now() - ttFailedAt[e] > 5e3 && (delete tt[e], delete ttFailedAt[e]), !tt[e]) {
+     j(`[sampler] load ${a}..`, "load-sample", { url: e });
+     const c = Date.now();
+     tt[e] = fetch(e).then((s) => s.arrayBuffer()).then(async (s) => {
+@@ -882,6 +883,9 @@ const $n = async (e, t, n) => {
+       const i = await t.decodeAudioData(s);
+       return yt[e] = i, i;
+     });
++    tt[e].catch(() => {
++      ttFailedAt[e] = Date.now();
++    });
+   }
+   return tt[e];
+ };
+@@ -1192,14 +1196,18 @@ async function yo(e) {
+   const t = Xo(e) || 44100;
+   return await new OfflineAudioContext(1, 1, t).decodeAudioData(e);
+ }
+-const nt = {}, bo = (e, t) => {
+-  if (e = e.replace("#", "%23"), !nt[e]) {
++const nt = {}, ntFailedAt = {}, bo = (e, t) => {
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (e = e.replace("#", "%23"), ntFailedAt[e] !== void 0 && Date.now() - ntFailedAt[e] > 5e3 && (delete nt[e], delete ntFailedAt[e]), !nt[e]) {
+     j(`[wavetable] load table ${t}..`, "load-table", { url: e });
+     const n = Date.now();
+     nt[e] = fetch(e).then((o) => o.arrayBuffer()).then(async (o) => {
+       const a = Date.now() - n, c = Go(o.byteLength);
+       return j(`[wavetable] load table ${t}... done! loaded ${c} in ${a}ms`, "loaded-table", { url: e }), await yo(o);
+     });
++    nt[e].catch(() => {
++      ntFailedAt[e] = Date.now();
++    });
+   }
+   return nt[e];
+ };
+@@ -1953,7 +1961,7 @@ const No = async (e, t, n, o = 0.5, a = 0.5) => {
        for (const L of R.bmod.__ids) {
          const P = R.bmod[L];
          P.fxi ??= v;
@@ -11,6 +61,40 @@ index da81977b3a8f9cb8af08440c61990437041f69b7..8c21b8a3268d728412a5f54145a0df3c
          x.audioNodes.push(...te);
        }
    });
+diff --git a/sampler.mjs b/sampler.mjs
+index 25c34c641ccff7292fe917bf3a5489ff7b512340..b417968b8c55b13ace9f9c5740a33560863d6209 100644
+--- a/sampler.mjs
++++ b/sampler.mjs
+@@ -13,6 +13,7 @@ import { logger } from './logger.mjs';
+ 
+ const bufferCache = {}; // string: Promise<ArrayBuffer>
+ const loadCache = {}; // string: Promise<ArrayBuffer>
++const loadFailedAt = {}; // string: number
+ 
+ export const getCachedBuffer = (url) => bufferCache[url];
+ 
+@@ -86,6 +87,11 @@ export const getSampleBufferSource = async (hapValue, bank, resolveUrl) => {
+ export const loadBuffer = (url, ac, s, n = 0) => {
+   const label = s ? `sound "${s}:${n}"` : 'sample';
+   url = url.replace('#', '%23');
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (loadFailedAt[url] !== undefined && Date.now() - loadFailedAt[url] > 5000) {
++    delete loadCache[url];
++    delete loadFailedAt[url];
++  }
+   if (!loadCache[url]) {
+     logger(`[sampler] load ${label}..`, 'load-sample', { url });
+     const timestamp = Date.now();
+@@ -100,6 +106,9 @@ export const loadBuffer = (url, ac, s, n = 0) => {
+         bufferCache[url] = decoded;
+         return decoded;
+       });
++    loadCache[url].catch(() => {
++      loadFailedAt[url] = Date.now();
++    });
+   }
+   return loadCache[url];
+ };
 diff --git a/superdough.mjs b/superdough.mjs
 index 03a4c3da8f01c6f303ae0aa1205dbab340798b65..1edc0f951fbf5044821fd2bd9f8adb4dd210f108 100644
 --- a/superdough.mjs
@@ -24,3 +108,32 @@ index 03a4c3da8f01c6f303ae0aa1205dbab340798b65..1edc0f951fbf5044821fd2bd9f8adb4d
          chain.audioNodes.push(...toCleanup);
        }
      }
+diff --git a/wavetable.mjs b/wavetable.mjs
+index 6ef1f0ebbc098d1bb4a6172b023d4b06a38c01fe..24e8a587b6001f5a1058017517a8da3ee7825024 100644
+--- a/wavetable.mjs
++++ b/wavetable.mjs
+@@ -108,8 +108,14 @@ async function decodeAtNativeRate(arr) {
+ }
+ 
+ const loadCache = {};
++const loadFailedAt = {}; // string: number
+ const loadBuffer = (url, label) => {
+   url = url.replace('#', '%23');
++  // wavenerd: forget a failed load after 5 s, so the file is fetched again when the network is back
++  if (loadFailedAt[url] !== undefined && Date.now() - loadFailedAt[url] > 5000) {
++    delete loadCache[url];
++    delete loadFailedAt[url];
++  }
+   if (!loadCache[url]) {
+     logger(`[wavetable] load table ${label}..`, 'load-table', { url });
+     const timestamp = Date.now();
+@@ -122,6 +128,9 @@ const loadBuffer = (url, label) => {
+         const decoded = await decodeAtNativeRate(res);
+         return decoded;
+       });
++    loadCache[url].catch(() => {
++      loadFailedAt[url] = Date.now();
++    });
+   }
+   return loadCache[url];
+ };
