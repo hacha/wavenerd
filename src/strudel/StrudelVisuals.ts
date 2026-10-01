@@ -252,7 +252,8 @@ export function getStrudelDrawContext(
   options?: { contextType?: string; pixelated?: boolean; pixelRatio?: number },
 ): RenderingContext | null {
   const { contextType = '2d', pixelated = false, pixelRatio } = options ?? {};
-  const canvases = collector?.drawCanvases ?? drawingCanvases;
+  // a callback first: frames run while another code is evaluated, e.g. during `await samples(…)`
+  const canvases = drawingCanvases ?? collector?.drawCanvases;
 
   let canvas = canvases?.get(id);
   if (canvas == null) {
