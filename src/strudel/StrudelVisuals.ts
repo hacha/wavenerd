@@ -2,6 +2,7 @@ import * as coreModule from '@strudel/core';
 import * as drawModule from '@strudel/draw';
 import * as webaudioModule from '@strudel/webaudio';
 import { getWidgetID, registerWidgetType } from '@strudel/transpiler';
+import { isQueryingPattern, queryPattern } from './patternQuery';
 
 const { Pattern, clamp, silence } = coreModule;
 const { __pianoroll, getPunchcardPainter, getTheme, pitchwheel, setTheme } = drawModule;
@@ -189,7 +190,9 @@ function addVisual(
   options: Record<string, any>,
   method: (pattern: Pattern, visual: StrudelVisual) => Pattern,
 ): Pattern {
-  const current = collector;
+  // a query of a playing pattern can run while another code is evaluated, e.g. during `await samples(…)`.
+  // what it calls belongs to the playing code, not the evaluated one
+  const current = isQueryingPattern() ? null : collector;
 
   const id = inlineId ?? (current != null
     ? `${current.deckId}_${kind}_${current.visuals.filter((v) => v.kind === kind && v.to == null).length}`
@@ -352,7 +355,7 @@ export function runStrudelDraw(
   state.haps = state.haps.filter((hap) => hap.isInNearPast(lookbehind, cycle));
   if (begin < end) {
     state.haps = state.haps.concat(
-      visual.pattern.queryArc(begin, end, { _cps: cps }).filter((hap: Hap) => hap.hasOnset()),
+      queryPattern(visual.pattern, begin, end, { _cps: cps }).filter((hap: Hap) => hap.hasOnset()),
     );
   }
   state.last = end;
@@ -424,7 +427,7 @@ function drawVisual(visual: StrudelVisual, ctx: CanvasRenderingContext2D, cycle:
  * Haps that have a whole, which every drawing needs. Same controls as the scheduler.
  */
 function queryHaps(pattern: Pattern, begin: number, end: number, cps: number): Hap[] {
-  return pattern.queryArc(begin, end, { _cps: cps }).filter((hap: Hap) => hap.whole != null);
+  return queryPattern(pattern, begin, end, { _cps: cps }).filter((hap: Hap) => hap.whole != null);
 }
 
 function clearCanvas(ctx: CanvasRenderingContext2D, smear = 0): void {
