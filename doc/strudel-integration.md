@@ -380,6 +380,8 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - scope 系は `pattern.analyze(id)` を返し、superdough の analyser（id ごとのグローバル）に音を流す。id はデッキごとに違う（インライン：`deckA_widget__scope_0`、背景：`deckA_scope_0`）。
 - エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
 - 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は 80%（REPL は 100%）。様子見中の値。
+- `.draw(fn, { lookbehind, lookahead })`（2026-10-01 追加）：これも差し替えた。元の実装は呼ばれた時点で `getTime()` を読んでクエリするが、cue があるのでその時点はコンパイル時になってしまう。差し替え後は、反映後の最初のフレームから、デッキの cycle で `fn(haps, time, time + lookahead, pattern)` を毎フレーム呼ぶ。hap の溜め方（onset のある hap、1 フレームで遡るのは最大 0.1 cycle、`lookbehind` より古いものは捨てる）は元と同じ。cycle が戻ったら（rewind）溜めた hap を捨てる。`options` は省略してよい（元は省略すると例外になる）。
+- `getDrawContext(id, options)`：`evalScope` の後でグローバルを差し替えた（`getStrudelDrawContext`）。canvas は「コンパイルしたコード」ごとに id 別に作る。評価中に呼ばれたら評価中のコードの canvas、`.draw` の callback 中ならそのコードの canvas を返す。2 デッキが同じ id（既定の `test-canvas`）を使っても別の canvas になる。どのコードにも属さない呼び出しには、表示されない canvas を返す。canvas は `staged` → 反映で `StrudelDeck.activeDrawCanvases` に入り、次のコードの反映で消える（REPL の評価ごとのクリアに相当）。コンパイルしただけでは鳴っているコードの canvas に触らない。背景では、これらの canvas を `.pianoroll()` などの canvas より下に重ねる。`pixelated` / `pixelRatio` / `contextType` は効く。
 - 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
 - Strudel デッキは、アプリのテーマによらず REPL の標準テーマ `strudelTheme`（`@strudel/codemirror` 1.2.6）の配色にした（`src/view/codemirror/strudelTheme.ts`）。デッキの背景 `#222222`、構文色、描画の色（`foreground` `#ffffff`）が REPL と同じ。パネルや補完などのテーマにない部分は wavenerd の構造に `strudelTheme` の色を入れた。背景描画の上でも読めるよう、REPL と同じくトークンの後ろに `lineBackground`（`#22222299`、strudel.cc の CSS の `.cm-line > *`）を敷き、現在行は `lineHighlight`（`#00000050`）で暗くする。GLSL デッキは変えない。mini-notation の中の色分け（M4）もやめ、REPL と同じく文字列全体を緑 1 色にした。
 
@@ -391,11 +393,22 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - compile しただけでは描画は変わらず、反映で新しいコードの描画に変わる。背景の canvas も消える
 - 停止中も例外を出さない
 
+`.draw()`（2026-10-01、同じ方法で確認）：
+
+- `s("bd sd").draw(fn, { lookahead: 1 })` で `fn` が呼ばれ、`getDrawContext()` の canvas がデッキの大きさになり、描いた色が読める。`#test-canvas` は作られない
+- デッキ A / B が既定の id で `getDrawContext()` を使うと、別々の canvas に描かれる
+- 新しいコードをコンパイルしただけでは、鳴っているコードの canvas は変わらない。反映すると canvas が入れ替わる
+- 溜めた hap は、cycle が戻ると捨てられる。止まっている間は増えない
+- `.draw(fn)`（options なし）が動く
+- GLSL → Strudel の切り替え後も、同じ canvas に描かれる
+
 未確認：`_spectrum`、`.fscope()`（analyser がないときの経路を含む）、背景の `.scope()` / `.spiral()` / `.punchcard()` / `wordfall`、`all(pianoroll)`、次の小節での反映（`applyCue`）、デッキ B、見えているタブで音と同期して動くか。
 
 ### 制限
 
-- `.draw()` / `.animate()` は差し替えていない。従来どおり全画面の canvas に REPL の時計で描くので、正しく動かない。
+- `.animate()` は差し替えていない。`@strudel/draw` の中で元の `getDrawContext` を直接使うので、従来どおり全画面の canvas に描き、正しく動かない（Strudel 側でも音との同期は未実装）。`cleanupDraw` も同じ。
+- `getDrawContext()` の canvas は、画面に置かれるまで大きさが決まらない。コードの最上位で描いたもの（例：`getDrawContext().fillRect(…)`）は、反映して画面に置いたときの大きさ合わせで消える。`.draw` の callback の中で描けば残る。callback の中で新しい id の canvas を作ったときも、最初の 1 フレームは同じ理由で消える。
+- `.onPaint(painter)` には対応していない（REPL では Drawer が毎フレーム呼ぶ）。
 - `every(…, x => x._pianoroll())` のように、クエリ時にだけ呼ばれる描画は表示されない（パターンとしては動く）。
 - `slider()` には対応していない（knob と MIDI を使う）。
 
