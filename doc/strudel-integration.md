@@ -110,7 +110,7 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - モード切り替えは `GLSL | Strudel` の 2 分割トグルで、現在のモードを反転色で示す。色は既存のテーマトークン（`bar-fg` / `bar-bg`）のみ。
 - Strudel モードのエディタ（`src/view/codemirror/strudel.ts`）
   - JavaScript 言語モード＋既存テーマ。
-  - mini-notation のハイライト：`"…"` とバッククォート（`${}` の中は除く）の中身を、数値・`~`・語・演算子に分けてテーマの `constants` / `comments` / `strings` / `operators` の色で塗る。シングルクォートは mini-notation ではないので対象外。
+  - mini-notation のハイライト：`"…"` とバッククォート（`${}` の中は除く）の中身を、数値・`~`・語・演算子に分けてテーマの `constants` / `comments` / `strings` / `operators` の色で塗る。シングルクォートは mini-notation ではないので対象外。（2026-10-01 に廃止。REPL と同じく文字列全体を 1 色にした。「描画（widget）」を参照）
   - 補完：識別子は evalScope したモジュールのエクスポート＋`knob0`〜`knob7`、`.` の後は `Pattern.prototype` のメソッド、`s()` / `sound()`（メソッドも含む）の mini 文字列の中は superdough の `soundMap` のサウンド名（prebake の読み込みに追従するため毎回読む）。`javascriptLanguage.data` に登録するので、JS のローカル変数の補完も残る。
   - 言語拡張は `useMemo` で保持する。毎回作り直すと入力のたびにプラグインが再構成され、補完のポップアップが閉じる。
 - エラー行：`src/view/utils/parseErrorLines.ts` でモードごとに解析する。GLSL は `ERROR: 0:N`、Strudel は構文エラー（acorn）の末尾 `(N:C)` と mini-notation の `at line N`。Strudel の mini-notation エラーは文字列内の行番号しか持たないので、`StrudelDeck` が各 mini 文字列を `mini2ast` で解析し直して、コード上の行に直したメッセージにする（元と同じエラー内容のものだけを採用するので、コメント内の壊れた文字列は無視される）。実行時エラー（`foo is not defined` など）は行が取れないので、ジャンプしない。
@@ -381,7 +381,7 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
 - 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は REPL と同じ 100%。
 - 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
-- Strudel デッキは、アプリのテーマによらず REPL の標準テーマ `strudelTheme`（`@strudel/codemirror` 1.2.6）の配色にした（`src/view/codemirror/strudelTheme.ts`）。デッキの背景 `#222222`、構文色、描画の色（`foreground` `#ffffff`）が REPL と同じ。パネルや補完などのテーマにない部分は wavenerd の構造に `strudelTheme` の色を入れた。背景描画の上でも読めるよう、REPL と同じくトークンの後ろに `lineBackground`（`#22222299`、strudel.cc の CSS の `.cm-line > *`）を敷き、現在行は `lineHighlight`（`#00000050`）で暗くする。GLSL デッキは変えない。
+- Strudel デッキは、アプリのテーマによらず REPL の標準テーマ `strudelTheme`（`@strudel/codemirror` 1.2.6）の配色にした（`src/view/codemirror/strudelTheme.ts`）。デッキの背景 `#222222`、構文色、描画の色（`foreground` `#ffffff`）が REPL と同じ。パネルや補完などのテーマにない部分は wavenerd の構造に `strudelTheme` の色を入れた。背景描画の上でも読めるよう、REPL と同じくトークンの後ろに `lineBackground`（`#22222299`、strudel.cc の CSS の `.cm-line > *`）を敷き、現在行は `lineHighlight`（`#00000050`）で暗くする。GLSL デッキは変えない。mini-notation の中の色分け（M4）もやめ、REPL と同じく文字列全体を緑 1 色にした。
 
 ### 確認結果（Chrome、AudioContext 停止中に `frameEmitter.__emit('update', …)` で手動でフレームを進めて確認）
 
