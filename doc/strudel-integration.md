@@ -138,7 +138,7 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 4. **M3 knob**：`knob0`〜`knob7` と MIDI 連携。
 5. **M4 UI の仕上げ**：切り替え UI の見た目、Strudel 用のエディタ補完・ハイライトなど。
 
-後回しにするもの：widget（`_scope` など）、Strudel 用エディタテーマ。パターンのハイライトとストレージのサンプルは実装済み（「パターンのハイライト」「ストレージのサンプル」を参照）。
+後回しにするもの：Strudel 用エディタテーマ。パターンのハイライト、ストレージのサンプル、widget は実装済み（「パターンのハイライト」「ストレージのサンプル」「描画（widget）」を参照）。
 
 ## M0 スパイク結果（2026-09-30）
 
@@ -366,6 +366,36 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - 上書きや削除をしても、デコード済みの音声は superdough のキャッシュに残る（外からは消せない）。リロードで解放される。
 - `Kick.wav` と `kick.wav`、`kick.wav` と `kick.mp3` は同じ名前になり、後から読み込まれたほうが鳴る。
 - ストレージのウェーブテーブル（`wavetables/`）は対象外。
+
+## 描画（widget）（2026-10-01）
+
+`._pianoroll()` などのインライン widget と、`.pianoroll()` などの背景描画に対応した。対象は `pianoroll` / `punchcard`（`wordfall` を含む）/ `spiral` / `scope`（`tscope`）/ `fscope` / `spectrum` / `pitchwheel`。インライン版は `_pianoroll` / `_punchcard` / `_spiral` / `_scope` / `_spectrum` / `_pitchwheel` の 6 つで、REPL と同じ。
+
+### 仕組み
+
+- Strudel 本来の描画は、グローバルな `getTime()`（1 つの REPL の時計）と全画面の `#test-canvas` を使う。2 デッキでは正しく動かないので、描画メソッドを `Pattern.prototype` ごと差し替えた（`src/strudel/StrudelVisuals.ts`、`StrudelEngine` の初期化時に登録）。インライン版は `@strudel/codemirror` の代わりに、transpiler の `registerWidgetType` で登録する。
+- 評価中に呼ばれた描画メソッドは、そのデッキの `StrudelVisual`（種類・呼ばれたパターン・オプション）として集める。評価は直列なので、集める先はモジュール変数 1 つで足りる。インライン版の位置は、transpiler の `meta.widgets` の `to` から取る。
+- 描画は `cue` と同じ単位で切り替わる。`StrudelCompiledCode.visuals` → `staged` → 反映時に `StrudelDeck.activeVisuals`。つまり、表示されるのは鳴っているコードの描画で、ハイライトと同じフレームに切り替わる。
+- 時刻は `DeckClock` の cycle（`audio.currentTime - outputLatency`、ハイライトと同じ）。停止中は最後の位置で止まる（`DeckClock.displayCycleAt`）。毎フレーム、パターンを描画範囲で `queryArc` し、`@strudel/draw` の描画関数（`__pianoroll`、`pitchwheel`、punchcard / spiral の painter）や `@strudel/webaudio` の `drawTimeScope` / `drawFrequencyScope` で描く。`drawSpectrum` は export されていないので写した。
+- scope 系は `pattern.analyze(id)` を返し、superdough の analyser（id ごとのグローバル）に音を流す。id はデッキごとに違う（インライン：`deckA_widget__scope_0`、背景：`deckA_scope_0`）。
+- エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
+- 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位で、コードが読めるよう `opacity-30` で薄くしている。
+- 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
+
+### 確認結果（Chrome、AudioContext 停止中に `frameEmitter.__emit('update', …)` で手動でフレームを進めて確認）
+
+- 6 種のインライン描画と背景の `.pianoroll()` が、どれも空でない canvas に描かれる。`#test-canvas` は作られない
+- `_scope` の analyser は `deckA_widget__scope_0` で作られ、波形が描かれる
+- 上に 2 行挿入すると、widget も 2 行下にずれる
+- compile しただけでは描画は変わらず、反映で新しいコードの描画に変わる。背景の canvas も消える
+- 停止中も例外を出さない
+
+### 制限
+
+- `.draw()` / `.animate()` は差し替えていない。従来どおり全画面の canvas に REPL の時計で描くので、正しく動かない。
+- `every(…, x => x._pianoroll())` のように、クエリ時にだけ呼ばれる描画は表示されない（パターンとしては動く）。
+- `slider()` には対応していない（knob と MIDI を使う）。
+- 背景の不透明度は固定（30%）。
 
 ## 未決事項・リスク
 

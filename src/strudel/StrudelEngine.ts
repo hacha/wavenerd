@@ -5,6 +5,7 @@ import { EventEmittable } from '../utils/EventEmittable';
 import { DeckClock } from './DeckClock';
 import { prebake } from './prebake';
 import { UserSamples } from './UserSamples';
+import { registerStrudelVisuals } from './StrudelVisuals';
 
 const { evalScope, Pattern } = coreModule;
 
@@ -142,8 +143,13 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
       console.warn('[strudel] failed to load worklets', e);
     });
 
+    // before evaluating code. the transpiler needs the inline widgets
+    registerStrudelVisuals();
+
+    // same modules as the Strudel REPL. `@strudel/draw` gives `pianoroll` for `all(pianoroll)`
     const modules: object[] = [
       coreModule,
+      await import('@strudel/draw'),
       await import('@strudel/mini'),
       await import('@strudel/tonal'),
       webaudioModule,

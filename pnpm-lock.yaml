@@ -45,6 +45,9 @@ importers:
       '@strudel/core':
         specifier: 1.2.6
         version: 1.2.6
+      '@strudel/draw':
+        specifier: 1.2.6
+        version: 1.2.6
       '@strudel/mini':
         specifier: 1.2.6
         version: 1.2.6

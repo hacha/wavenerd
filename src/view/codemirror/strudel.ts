@@ -7,6 +7,7 @@ import { STRUDEL_KNOB_NAMES, type StrudelEngine } from '../../strudel/StrudelEng
 import { type StrudelDeck } from '../../strudel/StrudelDeck';
 import { type FrameEmitter } from '../../FrameEmitter';
 import { strudelHighlight } from './strudelHighlight';
+import { strudelWidgets } from './strudelWidgets';
 
 const { soundMap } = webaudioModule;
 
@@ -187,5 +188,6 @@ export function strudel(deck: StrudelDeck, frameEmitter: FrameEmitter): Extensio
     javascriptLanguage.data.of({ autocomplete: createCompletionSource(deck.engine) }),
     miniHighlighter,
     strudelHighlight(deck, frameEmitter),
+    strudelWidgets(deck, frameEmitter),
   ];
 }

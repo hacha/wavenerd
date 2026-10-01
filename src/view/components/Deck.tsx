@@ -14,6 +14,8 @@ import { DeckBraceJumpMap } from './DeckBraceJumpMap';
 import { StuffContext } from '../StuffContext';
 import styles from './Deck.module.css';
 import clsx from 'clsx';
+import { StrudelDeck } from '../../strudel/StrudelDeck';
+import { StrudelDeckBackground } from './StrudelDeckBackground';
 
 export const Deck = forwardRef(({
   className,
@@ -160,6 +162,12 @@ export const Deck = forwardRef(({
         className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none"
         analyser={analyser}
       />
+      {deck instanceof StrudelDeck && (
+        <StrudelDeckBackground
+          className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none"
+          deck={deck}
+        />
+      )}
       <DeckEditor
         ref={refEditor}
         deck={deck}
