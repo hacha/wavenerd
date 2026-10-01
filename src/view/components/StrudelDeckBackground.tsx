@@ -1,4 +1,3 @@
-import clsx from 'clsx';
 import { useContext, useEffect, useRef } from 'react';
 import { type StrudelDeck } from '../../strudel/StrudelDeck';
 import { drawStrudelVisual, fitStrudelCanvas, setStrudelVisualColorsFromPage } from '../../strudel/StrudelVisuals';
@@ -7,7 +6,6 @@ import { StuffContext } from '../StuffContext';
 /**
  * Drawings of Strudel that are not inline, such as `.pianoroll()`, behind the code of the deck.
  * The Strudel REPL draws them behind the whole page. Each one has its own canvas, stacked in the order of the code.
- * Faded, so the code stays readable over them.
  */
 export const StrudelDeckBackground: React.FC<{
   deck: StrudelDeck;
@@ -61,5 +59,5 @@ export const StrudelDeckBackground: React.FC<{
     };
   }, [deck, frameEmitter]);
 
-  return <div ref={refRoot} className={clsx('opacity-30', className)} />;
+  return <div ref={refRoot} className={className} />;
 };

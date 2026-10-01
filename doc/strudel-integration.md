@@ -379,8 +379,9 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - 時刻は `DeckClock` の cycle（`audio.currentTime - outputLatency`、ハイライトと同じ）。停止中は最後の位置で止まる（`DeckClock.displayCycleAt`）。毎フレーム、パターンを描画範囲で `queryArc` し、`@strudel/draw` の描画関数（`__pianoroll`、`pitchwheel`、punchcard / spiral の painter）や `@strudel/webaudio` の `drawTimeScope` / `drawFrequencyScope` で描く。`drawSpectrum` は export されていないので写した。
 - scope 系は `pattern.analyze(id)` を返し、superdough の analyser（id ごとのグローバル）に音を流す。id はデッキごとに違う（インライン：`deckA_widget__scope_0`、背景：`deckA_scope_0`）。
 - エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
-- 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位で、コードが読めるよう `opacity-30` で薄くしている。
+- 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は REPL と同じ 100%。
 - 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
+- 背景描画の上でもコードが読めるよう、Strudel デッキのエディタは REPL と同じ見た目にした（`src/view/codemirror/strudel.ts` の `strudelLook`）。トークンの後ろに背景色 60% の帯（REPL の `.cm-line > * { background: var(--lineBackground) }`、`#22222299` 相当）を敷き、現在行は `#00000050` で暗くする（REPL の `lineHighlight`）。GLSL デッキは変えない。
 
 ### 確認結果（Chrome、AudioContext 停止中に `frameEmitter.__emit('update', …)` で手動でフレームを進めて確認）
 
@@ -397,7 +398,6 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - `.draw()` / `.animate()` は差し替えていない。従来どおり全画面の canvas に REPL の時計で描くので、正しく動かない。
 - `every(…, x => x._pianoroll())` のように、クエリ時にだけ呼ばれる描画は表示されない（パターンとしては動く）。
 - `slider()` には対応していない（knob と MIDI を使う）。
-- 背景の不透明度は固定（30%）。
 
 ## 未決事項・リスク
 

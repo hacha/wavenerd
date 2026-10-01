@@ -1,5 +1,5 @@
-import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
-import { type EditorState, type Extension, RangeSetBuilder } from '@uiw/react-codemirror';
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { type EditorState, type Extension, Prec, RangeSetBuilder } from '@uiw/react-codemirror';
 import { syntaxTree } from '@codemirror/language';
 import { javascript, javascriptLanguage, type scopeCompletionSource } from '@codemirror/lang-javascript';
 import * as webaudioModule from '@strudel/webaudio';
@@ -177,6 +177,21 @@ function createCompletionSource(engine: StrudelEngine): CompletionSource {
   };
 }
 
+// == look ========================================================================================
+/**
+ * Same as the Strudel REPL, so the code stays readable over the drawings behind it:
+ * the tokens get a dark background (`lineBackground`, the background at 60%),
+ * and the current line gets darker (`lineHighlight`).
+ */
+const strudelLook = Prec.highest(EditorView.theme({
+  '& .cm-line > *': {
+    background: 'color-mix(in srgb, var(--color-code-background) 60%, transparent)',
+  },
+  '& .cm-activeLine, & .cm-activeLineGutter': {
+    backgroundColor: '#00000050',
+  },
+}));
+
 // == extension ====================================================================================
 /**
  * Language support of the Strudel deck editor: JavaScript, Strudel completion, mini-notation highlight
@@ -189,5 +204,6 @@ export function strudel(deck: StrudelDeck, frameEmitter: FrameEmitter): Extensio
     miniHighlighter,
     strudelHighlight(deck, frameEmitter),
     strudelWidgets(deck, frameEmitter),
+    strudelLook,
   ];
 }
