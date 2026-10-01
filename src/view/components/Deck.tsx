@@ -206,6 +206,7 @@ export const Deck = forwardRef(({
         filterParamName={filterParamName}
       />
       <DeckLibrary
+        dir={mode === 'strudel' ? 'strudel' : 'shaders'}
         libraryOpeningAtom={libraryOpeningAtom}
         onLoad={handleLoad}
         focusEditor={focusEditor}

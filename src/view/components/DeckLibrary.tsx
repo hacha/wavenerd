@@ -92,10 +92,12 @@ function TextInput({
 
 // == main =========================================================================================
 export function DeckLibrary({
+  dir,
   libraryOpeningAtom,
   onLoad,
   focusEditor,
 }: {
+  dir: string;
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   onLoad: (code: string) => void;
   focusEditor: (highlight: boolean) => void;
@@ -105,23 +107,23 @@ export function DeckLibrary({
 
   const [textInputValue, setTextInputValue] = useState('');
 
-  const shadersList = useLs('shaders');
-  const shadersListFiltered = useMemo(
-    () => shadersList.filter((name) => name.includes(textInputValue)),
-    [shadersList, textInputValue],
+  const list = useLs(dir);
+  const listFiltered = useMemo(
+    () => list.filter((name) => name.includes(textInputValue)),
+    [list, textInputValue],
   );
 
   const [selectedIndexRaw, setSelectedIndexRaw] = useState(0);
   const selectedIndex = useMemo(
-    () => mod(selectedIndexRaw, shadersListFiltered.length),
-    [selectedIndexRaw, shadersListFiltered.length],
+    () => mod(selectedIndexRaw, listFiltered.length),
+    [selectedIndexRaw, listFiltered.length],
   );
 
   const selectedItemRef = useRef<HTMLDivElement>(null);
 
   const selectedName = useMemo(
-    () => shadersListFiltered[selectedIndex] as (string | undefined),
-    [shadersListFiltered, selectedIndex],
+    () => listFiltered[selectedIndex] as (string | undefined),
+    [listFiltered, selectedIndex],
   );
 
   useEffect(() => {
@@ -134,7 +136,7 @@ export function DeckLibrary({
   }, [isLibraryOpening, selectedIndex]);
 
   const load = useCallback(async (name: string) => {
-    const file = await storageManager.getFile(`shaders/${name}`);
+    const file = await storageManager.getFile(`${dir}/${name}`);
     const code = await file?.text();
     if (code == null) {
       throw new Error('Unreachable. library.getCode returns undefined');
@@ -143,7 +145,7 @@ export function DeckLibrary({
     onLoad(code);
     setLibraryOpening(false);
     focusEditor(false);
-  }, [onLoad, storageManager, setLibraryOpening, focusEditor]);
+  }, [dir, onLoad, storageManager, setLibraryOpening, focusEditor]);
 
   const handleCursor = useCallback((inc: number) => {
     setSelectedIndexRaw((prev) => prev + inc);
@@ -164,9 +166,9 @@ export function DeckLibrary({
   }, []);
 
   const handleSelect = useCallback(async (name: string) => {
-    setSelectedIndexRaw(shadersListFiltered.indexOf(name));
+    setSelectedIndexRaw(listFiltered.indexOf(name));
     load(name);
-  }, [load, shadersListFiltered]);
+  }, [load, listFiltered]);
 
   if (!isLibraryOpening) {
     return null;
@@ -184,7 +186,7 @@ export function DeckLibrary({
           focusEditor={focusEditor}
         />
         <SimpleBar className="max-h-75 overflow-y-auto overflow-x-hidden">
-          {shadersListFiltered.map((name, i) => (
+          {listFiltered.map((name, i) => (
             <DeckLibraryItem
               key={name}
               name={name}
@@ -193,9 +195,9 @@ export function DeckLibrary({
               itemRef={i === selectedIndex ? selectedItemRef : undefined}
             />
           ))}
-          {shadersListFiltered.length === 0 && (
+          {listFiltered.length === 0 && (
             <DeckLibraryItem
-              name={shadersList.length === 0 ? 'Library is empty' : 'No matching results'}
+              name={list.length === 0 ? 'Library is empty' : 'No matching results'}
               isSelected={false}
             />
           )}

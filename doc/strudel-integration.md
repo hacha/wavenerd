@@ -106,7 +106,7 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - デッキごとにモード切り替え（GLSL / Strudel）を置く。ステータスバーの `GLSL` / `Strudel` 表示をクリックして切り替える。モードは設定（`deckAMode` / `deckBMode`）に保存する。
 - 各スロットで GLSL 用と Strudel 用の `Deck` を両方マウントしておき、表示だけ切り替える。再マウントすると未保存の編集が消え、コードも再適用されて音が飛ぶため。
 - コードの保存先はモードごとに分ける：`decks/a.glsl` / `decks/a.strudel.js`、メモリは `memories/N.glsl` / `memories/strudel/N.js`。
-- Strudel モードではシェーダーライブラリ（`Mod-P`）を開かない。
+- ~~Strudel モードではシェーダーライブラリ（`Mod-P`）を開かない。~~（2026-10-01 に変更）ライブラリ（`Mod-P`）はデッキのモードに合うものだけを出す。GLSL はアセット一覧の「Shaders」（`shaders/`）、Strudel は「Strudel」（`strudel/`）。名前を「Sketches」のような一般的なものにせず言語名にしたのは、今後ほかの言語を足したときにも 1 言語 1 カテゴリで並べられるようにするため。追加は Shaders と同じくファイルの読み込み（ドロップ / フォルダアイコン）だけで、エディタからの保存はない。
 - モード切り替えは `GLSL | Strudel` の 2 分割トグルで、現在のモードを反転色で示す。色は既存のテーマトークン（`bar-fg` / `bar-bg`）のみ。
 - Strudel モードのエディタ（`src/view/codemirror/strudel.ts`）
   - JavaScript 言語モード＋既存テーマ。

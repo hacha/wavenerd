@@ -21,10 +21,13 @@ function NoAssets({ text }: { text: string }) {
 // == components ===================================================================================
 export function AssetListCategory({
   title,
+  noun = title,
   dir,
   className,
 }: {
   title: string;
+  /** What the assets are called in messages, if the title does not say it */
+  noun?: string;
   dir: string;
   className?: string;
 }) {
@@ -76,13 +79,13 @@ export function AssetListCategory({
   }, [dir, storageManager]);
 
   const handleWipeAssets = useCallback(() => {
-    const sure = confirm(`Are you sure you want to delete all ${title.toLowerCase()}?`);
+    const sure = confirm(`Are you sure you want to delete all ${noun.toLowerCase()}?`);
     if (sure) {
       for (const name of assets) {
         storageManager.delete(`${dir}/${name}`);
       }
     }
-  }, [assets, dir, storageManager, title]);
+  }, [assets, dir, noun, storageManager]);
 
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -129,7 +132,7 @@ export function AssetListCategory({
           </SimpleBar>
           {
             (assets.length === 0) && (
-              <NoAssets text={`No ${title}`} />
+              <NoAssets text={`No ${noun}`} />
             )
           }
         </>
