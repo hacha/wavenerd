@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef } from 'react';
 import { type StrudelDeck } from '../../strudel/StrudelDeck';
-import { drawStrudelVisual, fitStrudelCanvas, setStrudelVisualColorsFromPage } from '../../strudel/StrudelVisuals';
+import { drawStrudelVisual, fitStrudelCanvas, setStrudelVisualColors } from '../../strudel/StrudelVisuals';
 import { StuffContext } from '../StuffContext';
+import { strudelThemeSettings } from '../codemirror/strudelTheme';
 
 /**
  * Drawings of Strudel that are not inline, such as `.pianoroll()`, behind the code of the deck.
@@ -34,7 +35,7 @@ export const StrudelDeckBackground: React.FC<{
 
       const cycle = deck.displayCycle;
       const cps = deck.engine.clock.cps;
-      setStrudelVisualColorsFromPage();
+      setStrudelVisualColors(strudelThemeSettings.foreground, strudelThemeSettings.gutterForeground);
 
       visuals.forEach((visual, index) => {
         let canvas = canvases.get(visual.id);

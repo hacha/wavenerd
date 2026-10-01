@@ -2,8 +2,9 @@ import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view
 import { type Extension, MapMode, type Range, RangeSet, RangeValue, StateEffect, StateField } from '@uiw/react-codemirror';
 import { type FrameEmitter } from '../../FrameEmitter';
 import { type StrudelDeck } from '../../strudel/StrudelDeck';
-import { drawStrudelVisual, fitStrudelCanvas, setStrudelVisualColorsFromPage } from '../../strudel/StrudelVisuals';
+import { drawStrudelVisual, fitStrudelCanvas, setStrudelVisualColors } from '../../strudel/StrudelVisuals';
 import { addLocationsEffect } from './strudelHighlight';
+import { strudelThemeSettings } from './strudelTheme';
 
 /** The code that is playing changed. */
 const setActiveCodeEffect = StateEffect.define<number>();
@@ -175,7 +176,7 @@ export function strudelWidgets(deck: StrudelDeck, frameEmitter: FrameEmitter): E
       const visuals = new Map(deck.activeVisuals.map((visual) => [visual.id, visual]));
       const cycle = deck.displayCycle;
       const cps = deck.engine.clock.cps;
-      setStrudelVisualColorsFromPage();
+      setStrudelVisualColors(strudelThemeSettings.foreground, strudelThemeSettings.gutterForeground);
 
       for (const [id, canvas] of registry) {
         const visual = visuals.get(id);

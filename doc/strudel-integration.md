@@ -381,7 +381,7 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 - エディタ（`src/view/codemirror/strudelWidgets.ts`）：インライン描画は、呼び出し行の下のブロック widget（canvas）。位置はハイライトと同じく、コンパイル時のテキストと一致したときに登録し、編集に追従させる。widget id が同じなら再コンパイル後も canvas を使い回す。
 - 背景（`src/view/components/StrudelDeckBackground.tsx`）：デッキのコードの裏に、描画ごとの canvas をコード順に重ねる。REPL と違い全画面ではなくデッキ単位。不透明度は REPL と同じ 100%。
 - 色はアプリのテーマ（`--color-fore` / `--color-foresub`）を `@strudel/draw` の `setTheme` に渡す。
-- 背景描画の上でもコードが読めるよう、Strudel デッキのエディタは REPL と同じ見た目にした（`src/view/codemirror/strudel.ts` の `strudelLook`）。トークンの後ろに背景色 60% の帯（REPL の `.cm-line > * { background: var(--lineBackground) }`、`#22222299` 相当）を敷き、現在行は `#00000050` で暗くする（REPL の `lineHighlight`）。GLSL デッキは変えない。
+- Strudel デッキは、アプリのテーマによらず REPL の標準テーマ `strudelTheme`（`@strudel/codemirror` 1.2.6）の配色にした（`src/view/codemirror/strudelTheme.ts`）。デッキの背景 `#222222`、構文色、描画の色（`foreground` `#ffffff`）が REPL と同じ。パネルや補完などのテーマにない部分は wavenerd の構造に `strudelTheme` の色を入れた。背景描画の上でも読めるよう、REPL と同じくトークンの後ろに `lineBackground`（`#22222299`、strudel.cc の CSS の `.cm-line > *`）を敷き、現在行は `lineHighlight`（`#00000050`）で暗くする。GLSL デッキは変えない。
 
 ### 確認結果（Chrome、AudioContext 停止中に `frameEmitter.__emit('update', …)` で手動でフレームを進めて確認）
 

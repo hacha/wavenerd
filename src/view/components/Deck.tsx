@@ -16,6 +16,7 @@ import styles from './Deck.module.css';
 import clsx from 'clsx';
 import { StrudelDeck } from '../../strudel/StrudelDeck';
 import { StrudelDeckBackground } from './StrudelDeckBackground';
+import { strudelThemeSettings } from '../codemirror/strudelTheme';
 
 export const Deck = forwardRef(({
   className,
@@ -157,7 +158,11 @@ export const Deck = forwardRef(({
 
   // -- render -------------------------------------------------------------------------------------
   return (
-    <div className={clsx('relative bg-code-background', className)}>
+    <div
+      className={clsx('relative bg-code-background', className)}
+      // the background of the Strudel REPL
+      style={deck instanceof StrudelDeck ? { backgroundColor: strudelThemeSettings.background } : undefined}
+    >
       <DeckVisualizer
         className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none"
         analyser={analyser}

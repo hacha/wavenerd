@@ -198,25 +198,13 @@ function addVisual(
 
 // == drawing ======================================================================================
 /**
- * Colors of the drawings that the options do not set. Shared by every deck, like the theme of the app.
+ * Colors of the drawings that the options do not set, like the theme of the Strudel REPL. Shared by every deck.
  */
 export function setStrudelVisualColors(foreground: string, inactive: string): void {
   const theme = getTheme();
   if (theme.foreground === foreground && theme.gutterForeground === inactive) { return; }
 
   setTheme({ ...theme, foreground, gutterForeground: inactive });
-}
-
-/**
- * {@link setStrudelVisualColors} with the colors of the theme of the app (`--color-fore`, `--color-foresub`).
- */
-export function setStrudelVisualColorsFromPage(): void {
-  const style = getComputedStyle(document.documentElement);
-  const fore = style.getPropertyValue('--color-fore').trim();
-  const foresub = style.getPropertyValue('--color-foresub').trim();
-  if (fore !== '') {
-    setStrudelVisualColors(fore, foresub || fore);
-  }
 }
 
 /** Visuals that failed to draw, reported once. */
