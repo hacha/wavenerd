@@ -16,7 +16,7 @@ The dev server (`pnpm dev`) bridges files and decks (`vite/liveBridge.ts`, desig
 ## Before writing
 
 1. Read `live/status.json`.
-   - `connected: false`: the app is not open. The file is cued when it starts. Tell the user.
+   - `connected: false`, or no process with `serverPid` (the dev server was killed): the app is not running. The file is cued when it starts. Tell the user.
    - `transport.xfader`: 0 = deck A on air, 1 = deck B on air. Unless the user names a deck, write to the deck that is **not** on air, so they can bring it in with the crossfader.
    - `decks.<a|b>.mode`: only `strudel` decks play the file. A `glsl` deck must be switched (status bar toggle) to be heard; say so.
    - `decks.<a|b>.fileState`: `applied` (playing), `cued` (waiting for Mod-R), `error`, `not compiled`.

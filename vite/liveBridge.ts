@@ -100,6 +100,9 @@ export function liveBridge(): Plugin {
 
     const status = {
       connected: clients > 0,
+
+      // `connected` stays true if the server is killed. readers check that this process lives
+      serverPid: process.pid,
       updatedAt: new Date().toISOString(),
       transport: appState && {
         playing: appState.playing,

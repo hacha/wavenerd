@@ -28,6 +28,17 @@ async function readStdin() {
   return text;
 }
 
+/** The dev server leaves `connected: true` behind if it is killed. */
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM: it lives, as another user
+    return e.code === 'EPERM';
+  }
+}
+
 /**
  * @returns {Promise<{ ok: boolean; message: string }>}
  */
@@ -40,8 +51,8 @@ async function waitForCompile(slot) {
     const status = readJSON(resolve(LIVE_DIR, 'status.json'));
     const deck = status?.decks?.[slot];
 
-    if (status == null || !status.connected) {
-      return { ok: true, message: `${name}: the app is not open. It cues the file when it starts.` };
+    if (status == null || !status.connected || !isAlive(status.serverPid)) {
+      return { ok: true, message: `${name}: the app or the dev server is not running. The app cues the file when it starts.` };
     }
 
     if (deck?.lastCompile?.hash === hash) {
