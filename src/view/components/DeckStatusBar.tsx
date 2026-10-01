@@ -203,7 +203,7 @@ function FailedSounds() {
   }
   if (failedFiles.length > 0) {
     lines.push(`Failed to load while playing: ${failedFiles.join(', ')}`);
-    lines.push('They need a reload');
+    lines.push('They are fetched again when played, 5 s after the failure');
   }
 
   return (

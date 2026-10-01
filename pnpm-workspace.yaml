@@ -2,4 +2,5 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@0b5vr/*"
 patchedDependencies:
+  '@strudel/soundfonts@1.3.0': patches/@strudel__soundfonts@1.3.0.patch
   superdough@1.3.0: patches/superdough@1.3.0.patch

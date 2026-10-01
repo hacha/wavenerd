@@ -69,7 +69,7 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
 
   /**
    * Sounds whose audio file failed to load while playing, such as `bd:3`.
-   * superdough keeps the failure, so they stay silent until the page is reloaded.
+   * superdough fetches the file again 5 s after the failure (see the patches), and a sound leaves the list once it plays.
    */
   public get failedFiles(): string[] {
     return this.__failedFiles;
@@ -115,6 +115,16 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
     if (this.__failedFiles.includes(name)) { return; }
 
     this.__failedFiles = [...this.__failedFiles, name];
+    this.__emit('changeFailedFiles', { failedFiles: this.__failedFiles });
+  }
+
+  /**
+   * Forget a sound recorded by {@link addFailedFile}, once it plays. Does nothing if it is not recorded.
+   */
+  public removeFailedFile(name: string): void {
+    if (!this.__failedFiles.includes(name)) { return; }
+
+    this.__failedFiles = this.__failedFiles.filter((file) => file !== name);
     this.__emit('changeFailedFiles', { failedFiles: this.__failedFiles });
   }
 

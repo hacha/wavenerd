@@ -5,7 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  superdough@1.3.0: 6d7a949a35a18ca2ce04563b352b6695ae8f3ed2119197236e8c56114109d625
+  '@strudel/soundfonts@1.3.0': e9992acaf1fabc8c9162e196b8c62d9a0757f7c1426f9bd5bca57780aa44afca
+  superdough@1.3.0: 9ec3f9eaa6598e5a54413a4087d58a9f7912e04eecfa0f829281a83e44506d1c
 
 importers:
 
@@ -49,7 +50,7 @@ importers:
         version: 1.2.6
       '@strudel/soundfonts':
         specifier: 1.3.0
-        version: 1.3.0
+        version: 1.3.0(patch_hash=e9992acaf1fabc8c9162e196b8c62d9a0757f7c1426f9bd5bca57780aa44afca)
       '@strudel/tonal':
         specifier: 1.2.6
         version: 1.2.6
@@ -142,7 +143,7 @@ importers:
         version: 3.3.2(react@19.2.6)
       superdough:
         specifier: 1.3.0
-        version: 1.3.0(patch_hash=6d7a949a35a18ca2ce04563b352b6695ae8f3ed2119197236e8c56114109d625)
+        version: 1.3.0(patch_hash=9ec3f9eaa6598e5a54413a4087d58a9f7912e04eecfa0f829281a83e44506d1c)
       symbol-observable:
         specifier: ^4.0.0
         version: 4.0.0
@@ -2730,7 +2731,7 @@ snapshots:
     dependencies:
       '@strudel/core': 1.2.6
 
-  '@strudel/soundfonts@1.3.0':
+  '@strudel/soundfonts@1.3.0(patch_hash=e9992acaf1fabc8c9162e196b8c62d9a0757f7c1426f9bd5bca57780aa44afca)':
     dependencies:
       '@strudel/core': 1.2.6
       '@strudel/webaudio': 1.3.0
@@ -2756,7 +2757,7 @@ snapshots:
     dependencies:
       '@strudel/core': 1.2.6
       '@strudel/draw': 1.2.6
-      superdough: 1.3.0(patch_hash=6d7a949a35a18ca2ce04563b352b6695ae8f3ed2119197236e8c56114109d625)
+      superdough: 1.3.0(patch_hash=9ec3f9eaa6598e5a54413a4087d58a9f7912e04eecfa0f829281a83e44506d1c)
       supradough: 1.2.4
 
   '@stylistic/eslint-plugin@5.10.0(eslint@9.39.4(jiti@2.7.0))':
@@ -4540,7 +4541,7 @@ snapshots:
 
   style-mod@4.1.3: {}
 
-  superdough@1.3.0(patch_hash=6d7a949a35a18ca2ce04563b352b6695ae8f3ed2119197236e8c56114109d625):
+  superdough@1.3.0(patch_hash=9ec3f9eaa6598e5a54413a4087d58a9f7912e04eecfa0f829281a83e44506d1c):
     dependencies:
       '@kabelsalat/lib': 0.4.1
       nanostores: 0.11.4
