@@ -1,3 +1,7 @@
+import * as coreModule from '@strudel/core';
+
+const { State, TimeSpan } = coreModule;
+
 type Pattern = any;
 type Hap = any;
 
@@ -12,6 +16,19 @@ export function queryPattern(pattern: Pattern, begin: number, end: number, contr
   queryDepth++;
   try {
     return pattern.queryArc(begin, end, controls);
+  } finally {
+    queryDepth--;
+  }
+}
+
+/**
+ * Same as {@link queryPattern}, but throws the errors of the query.
+ * `queryArc` logs them to the console and returns no haps.
+ */
+export function queryPatternOrThrow(pattern: Pattern, begin: number, end: number, controls: Record<string, any>): Hap[] {
+  queryDepth++;
+  try {
+    return pattern.query(new State(new TimeSpan(begin, end), controls));
   } finally {
     queryDepth--;
   }
