@@ -100,6 +100,31 @@ function keyToLog(event: KeyboardEvent): string | null {
   return log;
 }
 
+/**
+ * The change that turns `from` into `to`, without the common head and tail.
+ * Keeps the cursor, the scroll and the tracked highlights where the code did not change.
+ */
+function diffChange(from: string, to: string): { from: number; to: number; insert: string } | null {
+  if (from === to) { return null; }
+
+  const maxLength = Math.min(from.length, to.length);
+  let head = 0;
+  while (head < maxLength && from[head] === to[head]) { head++; }
+
+  let tail = 0;
+  while (tail < maxLength - head && from[from.length - 1 - tail] === to[to.length - 1 - tail]) { tail++; }
+
+  return { from: head, to: from.length - tail, insert: to.slice(head, to.length - tail) };
+}
+
+export interface DeckEditorRef {
+  focusEditor: () => void;
+  jumpToLine: (line: number) => void;
+
+  /** Replace the code as an edit, which can be undone. Does not move the focus. */
+  replaceCode: (code: string, log: string) => void;
+}
+
 // == component ====================================================================================
 export const DeckEditor = forwardRef(({
   deck,
@@ -133,7 +158,7 @@ export const DeckEditor = forwardRef(({
   } | null>;
   libraryOpeningAtom: PrimitiveAtom<boolean>;
   className?: string;
-}, ref: React.Ref<{ focusEditor: () => void }>) => {
+}, ref: React.Ref<DeckEditorRef>) => {
   const { storageManager, frameEmitter } = useContext(StuffContext)!;
 
   const refCodeMirror = useRef<ReactCodeMirrorRef>(null);
@@ -370,10 +395,21 @@ export const DeckEditor = forwardRef(({
     );
   }, [refCodeMirror]);
 
+  const replaceCode = useCallback((code: string, log: string) => {
+    const view = refCodeMirror.current?.view;
+    if (view == null) { return; }
+
+    const change = diffChange(view.state.doc.toString(), code);
+    if (change != null) {
+      view.dispatch({ changes: change });
+    }
+    addLog(log);
+  }, [addLog]);
+
   useImperativeHandle(
     ref,
-    () => ({ focusEditor, jumpToLine }),
-    [focusEditor, jumpToLine],
+    () => ({ focusEditor, jumpToLine, replaceCode }),
+    [focusEditor, jumpToLine, replaceCode],
   );
 
   // -- component ----------------------------------------------------------------------------------

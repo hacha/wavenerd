@@ -481,3 +481,43 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 
 - 完全オフライン対応の案：CDN の内容を手元に落とすスクリプトを用意し、取得先を切り替える。切り替え口は `prebake.ts` の `baseCDN` と、`@strudel/soundfonts` の `setSoundfontUrl`。音源をリポジトリに同梱する案は、容量と再配布のライセンス確認が要るので採らない。
 - 計測用：`?strudelDev&strudelOffline` でオフライン状態から起動する。途中の切り替えは `strudelDev.offlineSwitch.offline`。このスイッチは `online` イベントを出さないので、復帰は `strudelDev.strudelDeckA.engine.retryFailedSounds()` で試す。
+
+## Claude Code から書く（live/）（2026-10-01）
+
+演奏しながら Claude Code に Strudel のコードを書かせるための仕組み。dev server（`pnpm dev`）でだけ動く。
+
+### 決定事項
+
+- ファイルは `live/A.strudel.js` / `live/B.strudel.js`（デッキごとに 1 つ）と `live/status.json`、`live/sounds.txt`。`live/` は git 管理外。
+- ファイルが変わったら、そのデッキのエディタに入れて **キューまで** 進める。反映（Mod-R / Shift-Mod-R）は常に人が行う。
+- 人がアプリでキュー（Mod-S）したコードはファイルに書き戻す。Claude は常に最新のキュー済みのコードを元に編集できる。
+- 対象は Strudel デッキだけ。GLSL は同じ仕組みで後から足せる。
+
+### 仕組み
+
+- `vite/liveBridge.ts`（Vite プラグイン）が `live/` を `fs.watch` で監視し、変わったファイルの内容を HMR の WebSocket（カスタムイベント `wavenerd-live:*`、型は `src/live/liveProtocol.ts`）でアプリに送る。`live/` は Vite の監視から外してあるので、ファイルが変わってもページは再読み込みされない。
+- アプリ側は `src/live/LiveBridge.ts`（`import.meta.hot` があるときだけ作る）。`Deck` がプッシュを受けると、`DeckEditor.replaceCode()` で差分だけを編集として入れ（カーソル・スクロール・ハイライトを保ち、Cmd-Z で戻せる。フォーカスは奪わない。DeckLog に `← live` と出る）、`handleCompile` でキューする。人がキューしていない手直しがあっても上書きする（Cmd-Z で戻せる）。
+- コンパイルのたびに結果（エラー文、`StrudelCompiledCode.id`）をサーバーへ送る。プッシュされたコードなら、サーバーがファイルを読んだときのハッシュを付けて返すので、エディタが改行などを変えても照合がずれない。人がキューしたコードなら、サーバーがファイルに書き戻してからハッシュを取る。サーバーは前回読み書きした内容と比べて、書き戻しによる変更通知を無視する。
+- `status.json`：`connected`（HMR クライアント数 > 0）、`transport`（`playing` / `bpm` / `xfader`）、デッキごとの `mode` / `cueStatus` / `error` / `lastCompile` / `fileState`。`fileState` はファイルの内容が `applied`（反映済み）/ `cued` / `error` / `not compiled` のどれか。反映済みかは、`codeId` → ハッシュの対応と `StrudelDeck.activeCodeId` で判断する。`codeId` はページを読み込み直すと 1 から数え直すので、アプリごとの `session` が変わったら対応を捨てる。状態は 0.5 秒ごとに見て、変わったときだけ送る。書き込みは一時ファイル経由の rename で行い、読み手が書きかけを読まないようにする。
+- `sounds.txt`：`soundMap` の名前・種類・バリエーション数。エンジンの準備後と、`soundMap` が変わって 1 秒後に書き直す。名前は小文字（superdough が小文字にする）。
+- アプリが開いていない間にファイルが変わったとき（dev server の起動時もそう見なす）：次に起動したアプリが最初のコンパイルを報告した時点で、内容が違えばファイルをプッシュし直し、キューさせる。アプリ自身のコード（OPFS）は通常どおり反映される。
+- `scripts/live-wait.mjs`：ファイルのハッシュと一致する `lastCompile` が `status.json` に現れるまで（最大 5 秒）待ち、結果を出す。`.claude/settings.json` の PostToolUse フック（`--hook`）として、Write / Edit のたびに動く。`live/[AB].strudel.js` 以外のファイルではすぐ終わる。コンパイルエラーなら `decision: "block"` でエラー文を Claude に返し、成功なら `additionalContext` で「キューした／反映済み」と返す。Bash で書き換えたときはフックが動かないので、`node scripts/live-wait.mjs a` を手で実行する。
+- `.claude/skills/strudel-live/SKILL.md`：Claude 向けの手順と wavenerd 固有の約束（1 cycle = 1 小節、`setcps` は効かない、`knob0`〜`knob7`、`sounds.txt` で名前を確かめる、対応する描画）。
+
+### 確認結果（Chrome、AudioContext 停止中・トランスポート停止中）
+
+- 起動するとデッキのコードが `live/` に書き出され、`status.json` は `connected: true`、両デッキ `applied` になる。`sounds.txt` は 1655 音
+- ファイルを書き換えると、ページは再読み込みされず（`window.__marker` が残る）、エディタの中身が変わり `cueStatus: ready`、`fileState: cued` になる。カーソルとフォーカスはそのまま
+- 構文エラーを書くと `fileState: error` とエラー文（`Unexpected token (行:列)`、行はファイルの行）。フックは Edit の直後にエラーを返した
+- エディタで直して Mod-S すると、ファイルに書き戻され、書き戻しはプッシュし直されない
+- プッシュの後の Cmd-Z で、プッシュ前の手直しに戻る
+- タブを閉じた状態でファイルを書き換え、開き直すと、そのファイルがキューされる
+- Shift-Mod-R で反映すると `fileState: applied` になる。ページを読み込み直した後も `applied` / `cued` を取り違えない
+- `$:` を 2 行書くと 2 つのパターンが重なって鳴る形になり、`knob0.range(200, 8000)` は knob0 = 0.5 で cutoff 4100 になる。`setcps` / `setcpm` はエラーにならず、テンポも変わらない
+
+未確認：音を出しての通しの確認、2 つ以上のタブを開いたとき（どちらもコンパイルし、`status.json` は後から書いた方になる）。
+
+### 制限
+
+- dev server が必要（本番ビルドには入らない）。タブは 1 つで使う。
+- Claude の応答には数秒〜数十秒かかる。片方のデッキを鳴らしながら、もう片方に書かせてクロスフェーダーでつなぐ使い方を想定している。

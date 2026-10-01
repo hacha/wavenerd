@@ -111,6 +111,7 @@ function DeckSlot({
         mode="strudel"
         deck={strudelDeck}
         storagePath={`decks/${slot}.strudel.js`}
+        liveSlot={slot}
         codeAtom={strudelAtoms.code}
         hasEditAtom={strudelAtoms.hasEdit}
         errorAtom={strudelAtoms.error}
