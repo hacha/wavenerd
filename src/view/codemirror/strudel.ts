@@ -1,5 +1,4 @@
-import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
-import { type EditorState, type Extension, RangeSetBuilder } from '@uiw/react-codemirror';
+import { type EditorState, type Extension } from '@uiw/react-codemirror';
 import { syntaxTree } from '@codemirror/language';
 import { javascript, javascriptLanguage, type scopeCompletionSource } from '@codemirror/lang-javascript';
 import * as webaudioModule from '@strudel/webaudio';
@@ -7,6 +6,7 @@ import { STRUDEL_KNOB_NAMES, type StrudelEngine } from '../../strudel/StrudelEng
 import { type StrudelDeck } from '../../strudel/StrudelDeck';
 import { type FrameEmitter } from '../../FrameEmitter';
 import { strudelHighlight } from './strudelHighlight';
+import { strudelWidgets } from './strudelWidgets';
 
 const { soundMap } = webaudioModule;
 
@@ -24,92 +24,6 @@ function isMiniString(node: SyntaxNode, state: EditorState): boolean {
   if (node.name !== 'String') { return false; }
   return state.doc.sliceString(node.from, node.from + 1) === '"';
 }
-
-/**
- * Ranges of the contents of a mini string, excluding the quotes and `${}` of templates.
- */
-function miniStringRanges(node: SyntaxNode, state: EditorState): [number, number][] {
-  const from = node.from + 1;
-  const quote = state.doc.sliceString(node.from, node.from + 1);
-  const closed = node.to - node.from >= 2 && state.doc.sliceString(node.to - 1, node.to) === quote;
-  const to = closed ? node.to - 1 : node.to;
-
-  const ranges: [number, number][] = [];
-  let begin = from;
-  for (let child = node.firstChild; child != null; child = child.nextSibling) {
-    if (child.name === 'Interpolation') {
-      ranges.push([begin, child.from]);
-      begin = child.to;
-    }
-  }
-  ranges.push([begin, to]);
-
-  return ranges.filter(([a, b]) => a < b);
-}
-
-// == highlight ====================================================================================
-const miniTokenRegex = /(-?\d*\.?\d+)|(~)|([A-Za-z][\w#']*)|([[\]{}<>(),|*/!@?:%^_.+-])/g;
-
-const miniMarks = [
-  Decoration.mark({ class: 'cm-mini-number' }),
-  Decoration.mark({ class: 'cm-mini-rest' }),
-  Decoration.mark({ class: 'cm-mini-word' }),
-  Decoration.mark({ class: 'cm-mini-operator' }),
-];
-
-function buildMiniDecorations(view: EditorView): DecorationSet {
-  const { state } = view;
-  const builder = new RangeSetBuilder<Decoration>();
-
-  // a string can span several visible ranges. skip the ones already added
-  let processedTo = -1;
-
-  for (const { from, to } of view.visibleRanges) {
-    syntaxTree(state).iterate({
-      from,
-      to,
-      enter: (nodeRef) => {
-        const node = nodeRef.node;
-        if (!isMiniString(node, state)) { return; }
-        if (node.from < processedTo) { return false; }
-        processedTo = node.to;
-
-        for (const [begin, end] of miniStringRanges(node, state)) {
-          const text = state.doc.sliceString(begin, end);
-          for (const match of text.matchAll(miniTokenRegex)) {
-            const kind = match.slice(1).findIndex((group) => group != null);
-            const tokenFrom = begin + match.index;
-            builder.add(tokenFrom, tokenFrom + match[0].length, miniMarks[kind]);
-          }
-        }
-
-        return false;
-      },
-    });
-  }
-
-  return builder.finish();
-}
-
-const miniHighlighter = ViewPlugin.fromClass(class {
-  public decorations: DecorationSet;
-
-  public constructor(view: EditorView) {
-    this.decorations = buildMiniDecorations(view);
-  }
-
-  public update(update: ViewUpdate): void {
-    if (
-      update.docChanged
-      || update.viewportChanged
-      || syntaxTree(update.startState) !== syntaxTree(update.state)
-    ) {
-      this.decorations = buildMiniDecorations(update.view);
-    }
-  }
-}, {
-  decorations: (plugin) => plugin.decorations,
-});
 
 // == completion ===================================================================================
 const soundFunctionNames = new Set(['s', 'sound']);
@@ -178,14 +92,15 @@ function createCompletionSource(engine: StrudelEngine): CompletionSource {
 
 // == extension ====================================================================================
 /**
- * Language support of the Strudel deck editor: JavaScript, Strudel completion, mini-notation highlight
- * and the highlight of what the deck is playing.
+ * Language support of the Strudel deck editor: JavaScript, Strudel completion,
+ * the highlight of what the deck is playing and the inline drawings.
+ * Mini-notation strings are one color like the Strudel REPL.
  */
 export function strudel(deck: StrudelDeck, frameEmitter: FrameEmitter): Extension {
   return [
     javascript(),
     javascriptLanguage.data.of({ autocomplete: createCompletionSource(deck.engine) }),
-    miniHighlighter,
     strudelHighlight(deck, frameEmitter),
+    strudelWidgets(deck, frameEmitter),
   ];
 }

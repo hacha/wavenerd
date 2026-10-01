@@ -18,6 +18,7 @@ import styles from './DeckEditor.module.css';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { parseErrorLines } from '../utils/parseErrorLines';
 import { strudel } from '../codemirror/strudel';
+import { strudelTheme } from '../codemirror/strudelTheme';
 import { type CodeDeck } from '../../CodeDeck';
 import { StrudelDeck } from '../../strudel/StrudelDeck';
 
@@ -398,7 +399,8 @@ export const DeckEditor = forwardRef(({
           value={code}
           extensions={extensions}
           theme={[
-            theme.extensions,
+            // Strudel decks look like the Strudel REPL, whatever the theme of the app
+            deck instanceof StrudelDeck ? strudelTheme : theme.extensions,
             fontExtension,
           ]}
           onKeyDown={handleKeyDown}

@@ -67,6 +67,13 @@ export class DeckClock {
   }
 
   /**
+   * Cycle position for drawing: {@link cycleAt} while running, the last known position while paused.
+   */
+  public displayCycleAt(ctxTime: number): number {
+    return this.__anchor != null ? this.cycleAt(ctxTime) : this.__lastCycle;
+  }
+
+  /**
    * AudioContext time of the given cycle position.
    */
   public timeAt(cycle: number): number {

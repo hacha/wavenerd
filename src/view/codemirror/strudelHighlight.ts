@@ -4,9 +4,10 @@ import { type FrameEmitter } from '../../FrameEmitter';
 import { type StrudelCompiledCode, type StrudelDeck, strudelLocationKey } from '../../strudel/StrudelDeck';
 
 /**
- * Track the mini-notation atoms of a compiled code. Drops the ones of the codes that are neither it nor the active one.
+ * A compiled code is found in the document. Its offsets are valid at this transaction.
+ * Track the mini-notation atoms of it. Drops the ones of the codes that are neither it nor the active one.
  */
-const addLocationsEffect = StateEffect.define<{ compiled: StrudelCompiledCode; activeCodeId: number }>();
+export const addLocationsEffect = StateEffect.define<{ compiled: StrudelCompiledCode; activeCodeId: number }>();
 
 /** Keys ({@link strudelLocationKey}) of the atoms that are heard now. */
 const setSoundingEffect = StateEffect.define<ReadonlySet<string>>();

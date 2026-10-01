@@ -119,20 +119,6 @@ export function createCMTheme(theme: Theme): {
       borderBottom: '2px solid ' + invalid,
     },
 
-    // mini-notation in Strudel strings. also covers the spans of the syntax highlighter inside
-    '.cm-mini-word, .cm-mini-word *': {
-      color: strings,
-    },
-    '.cm-mini-number, .cm-mini-number *': {
-      color: constants,
-    },
-    '.cm-mini-operator, .cm-mini-operator *': {
-      color: operators,
-    },
-    '.cm-mini-rest, .cm-mini-rest *': {
-      color: comments,
-    },
-
     // mini-notation atoms that the Strudel deck is playing now
     '.cm-mini-sounding': {
       outline: '1px solid ' + text,
