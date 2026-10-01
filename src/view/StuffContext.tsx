@@ -7,6 +7,7 @@ import { type FullscreenManager } from '../FullscreenManager';
 import { type FrameEmitter } from '../FrameEmitter';
 import { type StorageManager } from '../StorageManager';
 import { type StrudelDeck } from '../strudel/StrudelDeck';
+import { type LiveBridge } from '../live/LiveBridge';
 
 export interface Stuff {
   deckA: WavenerdDeck;
@@ -20,6 +21,9 @@ export interface Stuff {
   router: AudioDestinationRouter;
   fullscreenManager: FullscreenManager;
   frameEmitter: FrameEmitter;
+
+  /** Dev server only. */
+  liveBridge: LiveBridge | null;
 }
 
 export const StuffContext = createContext<Stuff | null>(null);

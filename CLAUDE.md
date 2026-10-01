@@ -87,6 +87,10 @@ DCRemoval, HardClip, LookaheadLimiter, FirstOrderFilter, TimeDomainDataProbe, Ti
 - **Filter modes**: `MixerFilterBiquad.ts`, `MixerFilterGate.ts`, `MixerFilterNone.ts`
 - **Crossfader curves**: `xfaderCurveConstantPower.ts`, `xfaderCurveCut.ts`, `xfaderCurveLinear.ts`, `xfaderCurveTransition.ts`
 
+### Live coding bridge (dev server only)
+
+`vite/liveBridge.ts` + `src/live/LiveBridge.ts`: `live/A.strudel.js` / `live/B.strudel.js` are cued to the Strudel decks, `live/status.json` and `live/sounds.txt` describe the app. To write code for the decks while the user plays, use the `strudel-live` skill. Details in `doc/strudel-integration.md`.
+
 ## Icons
 
 Uses `unplugin-icons` with mdi icon set: https://icones.js.org/collection/mdi

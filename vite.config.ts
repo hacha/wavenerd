@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'child_process';
+import { liveBridge } from './vite/liveBridge';
 
 const COMMIT_HASH = execSync('git rev-parse HEAD').toString().trim();
 const COMMIT_DATE = execSync('git log -1 --pretty=format:%cd').toString().trim();
@@ -38,6 +39,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     Icons({ compiler: 'jsx', jsx: 'react' }),
+    liveBridge(),
   ],
   define: {
     COMMIT_HASH: `'${COMMIT_HASH}'`,

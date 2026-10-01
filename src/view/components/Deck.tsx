@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { type Analyser } from '../../audio/Analyser';
-import { DeckEditor } from './DeckEditor';
+import { DeckEditor, type DeckEditorRef } from './DeckEditor';
 import { DeckStatusBar } from './DeckStatusBar';
 import { atom, type PrimitiveAtom } from 'jotai';
 import { type CodeDeck } from '../../CodeDeck';
@@ -17,6 +17,7 @@ import clsx from 'clsx';
 import { StrudelDeck } from '../../strudel/StrudelDeck';
 import { StrudelDeckBackground } from './StrudelDeckBackground';
 import { strudelThemeSettings } from '../codemirror/strudelTheme';
+import { type LiveSlot } from '../../live/LiveBridge';
 
 export const Deck = forwardRef(({
   className,
@@ -32,6 +33,7 @@ export const Deck = forwardRef(({
   gainParamName,
   filterParamName,
   storagePath,
+  liveSlot,
 }: {
   deck: CodeDeck;
   mode: DeckSourceMode;
@@ -39,6 +41,10 @@ export const Deck = forwardRef(({
   gainParamName: string;
   filterParamName: string;
   storagePath: string;
+
+  /** The file of `live/` that this deck follows. Strudel decks only. */
+  liveSlot?: LiveSlot;
+
   cueStatusAtom: PrimitiveAtom<'none' | 'ready' | 'applying' | 'compiling'>;
   errorAtom: PrimitiveAtom<string | null>;
   codeAtom: PrimitiveAtom<string>;
@@ -47,7 +53,7 @@ export const Deck = forwardRef(({
   analyser: Analyser;
   className?: string;
 }, ref: React.Ref<{ focusEditor: (highlight: boolean) => void }>) => {
-  const { storageManager } = useContext(StuffContext)!;
+  const { storageManager, liveBridge } = useContext(StuffContext)!;
 
   // -- atoms and state ----------------------------------------------------------------------------
   const libraryOpeningAtom = useMemo(() => atom(false), []);
@@ -61,7 +67,7 @@ export const Deck = forwardRef(({
   const [focusHighlightKey, setFocusHighlightKey] = useState(0);
 
   // -- refs ---------------------------------------------------------------------------------------
-  const refEditor = useRef<{ focusEditor: () => void; jumpToLine: (line: number) => void }>(null);
+  const refEditor = useRef<DeckEditorRef>(null);
 
   // -- beforeunload -------------------------------------------------------------------------------
   const handleBeforeUnload = useAtomCallback(useCallback((get, _, event: BeforeUnloadEvent) => {
@@ -96,7 +102,10 @@ export const Deck = forwardRef(({
     jumpToLine(1);
   }, [codeAtom, hasEditAtom, jumpToLine]));
 
-  const handleCompile = useAtomCallback(useCallback(async (get, set) => {
+  /**
+   * @param liveHash The hash of the file of `live/` that was pushed to the editor, if the code came from it
+   */
+  const handleCompile = useAtomCallback(useCallback(async (get, set, liveHash?: string) => {
     const code = get(codeAtom);
 
     const compileBegin = performance.now();
@@ -106,7 +115,14 @@ export const Deck = forwardRef(({
     storageManager.save(storagePath, code);
     set(hasEditAtom, false);
     set(compileTimeAtom, compileTime);
-  }, [codeAtom, hasEditAtom, deck, storagePath, compileTimeAtom, storageManager]));
+
+    if (liveBridge != null && liveSlot != null) {
+      liveBridge.reportCompiled(liveSlot, { hash: liveHash ?? null, code });
+    }
+  }, [codeAtom, hasEditAtom, deck, storagePath, compileTimeAtom, storageManager, liveBridge, liveSlot]));
+
+  // cued by the player. the file of `live/` takes the code
+  const handleCompileByPlayer = useCallback(() => handleCompile(), [handleCompile]);
 
   const handleApply = useCallback(
     async () => {
@@ -132,6 +148,20 @@ export const Deck = forwardRef(({
   const handleBraceJump = useCallback((index: number) => {
     refBraceJumpMap.current?.update(index);
   }, []);
+
+  // -- live bridge --------------------------------------------------------------------------------
+  // a file of `live/` changed: show it and cue it. applying it is up to the player
+  useEffect(() => {
+    if (liveBridge == null || liveSlot == null) { return; }
+
+    const type = liveSlot === 'a' ? 'pushA' : 'pushB';
+    const handlePush = liveBridge.on(type, ({ code, hash }) => {
+      refEditor.current?.replaceCode(code, '← live');
+      handleCompile(hash);
+    });
+
+    return () => liveBridge.off(type, handlePush);
+  }, [liveBridge, liveSlot, handleCompile]);
 
   // -- init ---------------------------------------------------------------------------------------
   useEffect(() => {
@@ -182,7 +212,7 @@ export const Deck = forwardRef(({
         logsAtom={logsAtom}
         errorAtom={errorAtom}
         hasEditAtom={hasEditAtom}
-        onCompile={handleCompile}
+        onCompile={handleCompileByPlayer}
         onApply={handleApply}
         onApplyImmediately={handleApplyImmediately}
         onBraceJump={handleBraceJump}
@@ -198,7 +228,7 @@ export const Deck = forwardRef(({
         cueStatusAtom={cueStatusAtom}
         hasEditAtom={hasEditAtom}
         compileTimeAtom={compileTimeAtom}
-        onCompile={handleCompile}
+        onCompile={handleCompileByPlayer}
         onApply={handleApply}
         onApplyImmediately={handleApplyImmediately}
         onJumpToLine={jumpToLine}

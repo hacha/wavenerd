@@ -6,6 +6,7 @@ import { type CodeDeck, type CodeDeckEvents, type CueStatus } from '../CodeDeck'
 import { EventEmittable } from '../utils/EventEmittable';
 import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
+import { queryPatternOrThrow } from './patternQuery';
 import { STRUDEL_KNOB_NAMES, type StrudelEngine } from './StrudelEngine';
 import { type StrudelDrawCanvases, type StrudelVisual, collectStrudelVisuals, placeStrudelVisuals } from './StrudelVisuals';
 
@@ -14,6 +15,9 @@ const { setSuperdoughAudioController, webaudioOutput, webaudioRepl } = webaudioM
 
 type Pattern = any;
 type Hap = any;
+
+/** How many cycles {@link StrudelDeck.compile} tries to query. */
+const TRIAL_QUERY_CYCLES = 4;
 
 /**
  * Code that compiled successfully, with the places of its mini-notation atoms.
@@ -274,6 +278,15 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
       return;
     }
 
+    // some code fails only when it is queried, which would be after it is applied in the middle of a set
+    const queryError = this.__trialQuery(pattern);
+    if (queryError != null) {
+      this.__staged = null;
+      this.__setCueStatus('none');
+      this.__emit('error', { error: `${formatError(queryError, code)} (when played)` });
+      return;
+    }
+
     const codeId = ++this.__lastCodeId;
     this.__compiledCode = { id: codeId, code, miniLocations, visuals };
     this.__staged = { pattern, codeId, visuals, drawCanvases };
@@ -317,6 +330,22 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
    */
   public setParam(name: string, value: number): void {
     this.__params.set(name, value);
+  }
+
+  /**
+   * Query the cycles around now, where the pattern would be played if it is applied.
+   * Several cycles, since a pattern can change per cycle, e.g. `cat(1, 2)`.
+   */
+  private __trialQuery(pattern: Pattern): unknown {
+    const { clock } = this.engine;
+    const begin = Math.floor(this.displayCycle);
+
+    try {
+      queryPatternOrThrow(pattern, begin, begin + TRIAL_QUERY_CYCLES, { _cps: clock.cps, cyclist: 'cyclist' });
+      return null;
+    } catch (error) {
+      return error;
+    }
   }
 
   /**

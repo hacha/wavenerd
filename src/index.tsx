@@ -26,6 +26,7 @@ import { DeckSourceSwitch, type DeckSourceMode } from './audio/DeckSourceSwitch'
 import { TickNode } from './audio/TickNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
+import { type LiveBridge } from './live/LiveBridge';
 import './index.css';
 
 // == setup ========================================================================================
@@ -395,6 +396,19 @@ if (strudelOfflineSwitch != null) {
   });
 }
 
+// == live bridge ==================================================================================
+// the files of `live/` for coding agents. needs the dev server (`vite/liveBridge.ts`)
+let liveBridge: LiveBridge | null = null;
+if (import.meta.hot) {
+  const { LiveBridge } = await import('./live/LiveBridge');
+  liveBridge = new LiveBridge({
+    hot: import.meta.hot,
+    decks: { a: strudelDeckA, b: strudelDeckB },
+    hostDeck: deckA,
+    mixer,
+  });
+}
+
 // == render =======================================================================================
 const root = createRoot(document.getElementById('root')!);
 root.render(
@@ -411,6 +425,7 @@ root.render(
       storageManager,
       fullscreenManager,
       frameEmitter,
+      liveBridge,
     }}
   />,
 );
