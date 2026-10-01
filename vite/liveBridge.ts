@@ -46,11 +46,23 @@ function sha1(text: string): string {
   return createHash('sha1').update(text).digest('hex');
 }
 
-/** Readers poll the file, so it must never be half written. */
-function writeAtomically(path: string, text: string): void {
-  const temp = `${path}.tmp`;
-  writeFileSync(temp, text);
-  renameSync(temp, path);
+/**
+ * Readers poll the file, so it must never be half written.
+ * Never throws: an error here would stop the dev server in the middle of a set.
+ *
+ * @returns Whether the file was written
+ */
+function writeAtomically(path: string, text: string): boolean {
+  // another dev server of the same project might write the same file
+  const temp = `${path}.${process.pid}.tmp`;
+  try {
+    writeFileSync(temp, text);
+    renameSync(temp, path);
+    return true;
+  } catch (error) {
+    console.warn(`[live] failed to write ${path}:`, error);
+    return false;
+  }
 }
 
 export function liveBridge(): Plugin {
@@ -213,8 +225,9 @@ export function liveBridge(): Plugin {
 
         // cued in the app. the file follows the app
         if (event.hash == null && event.code !== slotState.content) {
-          slotState.content = event.code;
-          writeAtomically(filePath(event.slot), event.code);
+          if (writeAtomically(filePath(event.slot), event.code)) {
+            slotState.content = event.code;
+          }
         }
 
         slotState.lastCompile = {

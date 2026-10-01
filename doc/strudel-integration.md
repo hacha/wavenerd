@@ -519,5 +519,14 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 
 ### 制限
 
-- dev server が必要（本番ビルドには入らない）。タブは 1 つで使う。
+- dev server が必要（本番ビルドには入らない）。タブは 1 つ、dev server も 1 つで使う。同じリポジトリで dev server を 2 つ動かすと、両方が `live/` を読み書きし、`status.json` は後から書いた方になる（2026-10-01 に実際に起きた。一時ファイル名が共通だったため rename が失敗し、片方のサーバーが例外で落ちた。一時ファイル名をプロセスごとに分け、プラグインの書き込みは失敗しても例外を投げないようにした）。
 - Claude の応答には数秒〜数十秒かかる。片方のデッキを鳴らしながら、もう片方に書かせてクロスフェーダーでつなぐ使い方を想定している。
+
+## 鳴らすときだけ出るエラー（2026-10-01）
+
+Strudel の `Pattern.queryArc` は、クエリ中の例外を `errorLogger` でコンソールに出し、空の配列を返す。そのため、評価は通るがクエリで失敗するコード（例：`s("bd").fmap((v) => v.x.y)`、`s("bd*4").every(cat(1, 2), (x) => x.foo())`）は、反映すると一部の音が黙って鳴らなくなるだけで、デッキのエラーにも出なかった（スケジューラの `onError` には届かない）。
+
+- コンパイル時に、現在の cycle から 4 cycle 分を試しにクエリする（`StrudelDeck.__trialQuery`）。cycle ごとに変わるパターン（`cat(1, 2)` など）のために複数 cycle を見る。例外を拾うため、`queryArc` ではなく `pattern.query(new State(new TimeSpan(…)))` を使う `queryPatternOrThrow()`（`src/strudel/patternQuery.ts`）を通す。描画を集めない扱いは `queryPattern()` と同じ。
+- 失敗したらコンパイルエラーと同じ扱い：キューせず、エラー文の末尾に `(when played)` を付ける。`live/` のフックにも同じエラーが返る。
+- 確認（Chrome、無音）：上の 2 例はキューされずエラーになる。`s("bd sd")`、`sine.range()`、`every(cat(1, 2), fast)`、`knob0.range()` と `_pianoroll()` はキューされ、描画も集まる。時間は 1〜2ms。
+- 制限：試すのは現在位置からの 4 cycle だけ。それより先でだけ失敗するコード、knob の値によって失敗するコードは拾えない。演奏中のクエリの失敗は今も黙って無音になる（スケジューラも `queryPatternOrThrow` にすればデッキのエラーに出せる）。
