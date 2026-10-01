@@ -12,6 +12,11 @@ export function AssetList({ className }: {
         dir="shaders"
       />
       <AssetListCategory
+        title="Strudel"
+        noun="Strudel sketches"
+        dir="strudel"
+      />
+      <AssetListCategory
         title="Samples"
         dir="samples"
       />

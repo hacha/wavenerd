@@ -223,10 +223,7 @@ export const DeckEditor = forwardRef(({
       key: 'Mod-p',
       preventDefault: true,
       run: () => {
-        // the library has GLSL shaders only
-        if (mode === 'glsl') {
-          setLibraryOpening(true);
-        }
+        setLibraryOpening(true);
         return false;
       },
     },
@@ -266,7 +263,7 @@ export const DeckEditor = forwardRef(({
     ]),
     ...braceJumpKeymap({ onBraceJump }),
     ...defaultKeymap,
-  ], [mode, onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory]);
+  ], [onCompile, onApply, onApplyImmediately, onBraceJump, setLibraryOpening, handleLoadMemory, handleSaveMemory]);
 
   // -- error layer --------------------------------------------------------------------------------
   const error = useAtomValue(errorAtom);

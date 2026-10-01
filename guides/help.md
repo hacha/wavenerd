@@ -48,7 +48,7 @@ All shortcuts in CodeMirror's [defaultKeymap](https://codemirror.net/docs/ref/#c
 
 - `Ctrl-J`: Focus deck A
 - `Ctrl-K`: Focus deck B
-- `Ctrl-P`: Open the shader library
+- `Ctrl-P`: Open the library (shaders on a GLSL deck, Strudel sketches on a Strudel deck)
 - `Ctrl-S`: Compile the code
 - `Ctrl-R`: Apply the code
 - `Shift-Ctrl-R`: Apply the code immediately
