@@ -1,4 +1,5 @@
 import { type DeckClock } from './DeckClock';
+import { queryPattern } from './patternQuery';
 
 type Pattern = any;
 type Hap = any;
@@ -150,7 +151,7 @@ export class StrudelScheduler {
     try {
       const { clock } = this;
       const cps = clock.cps;
-      const haps: Hap[] = pattern.queryArc(begin, end, { _cps: cps, cyclist: 'cyclist' });
+      const haps: Hap[] = queryPattern(pattern, begin, end, { _cps: cps, cyclist: 'cyclist' });
 
       for (const hap of haps) {
         if (!hap.hasOnset()) { continue; }
