@@ -365,7 +365,44 @@ AudioContext を止めたまま（無音で）、生成した WAV を登録し�
 
 - 上書きや削除をしても、デコード済みの音声は superdough のキャッシュに残る（外からは消せない）。リロードで解放される。
 - `Kick.wav` と `kick.wav`、`kick.wav` と `kick.mp3` は同じ名前になり、後から読み込まれたほうが鳴る。
-- ストレージのウェーブテーブル（`wavetables/`）は対象外。
+- ストレージのウェーブテーブルは次の節。
+
+## ストレージのウェーブテーブル（2026-10-02）
+
+アセット一覧に取り込んだウェーブテーブル（OPFS の `wavetables/`）を、superdough のウェーブテーブルシンセとして `s("wt_saw")` のように鳴らせる。`wt`（フレームの位置、0〜1）、`wtenv`、`wtrate`、`warp`、`unison`、`detune` などの superdough のパラメータがそのまま使える。
+
+```js
+note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
+```
+
+### 仕組み
+
+- `src/strudel/UserWavetables.ts`（`StrudelEngine.userWavetables`）。サンプルと同じく、`src/index.tsx` のストレージの処理が GLSL デッキの `loadWavetable` / `deleteWavetable` と並べて `set` / `delete` を呼ぶ。
+- 名前は GLSL デッキの名前を小文字にし、先頭に `wt_` を付ける（CDN の `uzu-wavetables` と同じ慣習。サンプルと名前を分けるため）。`saw.bin` は `s("wt_saw")`。もともと `wt_` で始まる名前には付け足さない（`wt_saw.bin` も `s("wt_saw")`）。
+- ストレージのファイルは GLSL デッキが読むとおりの生の 32bit float（2048 値 × フレーム数）。superdough は音声ファイルしか読まないので、32bit float・モノラルの WAV に包んで blob URL にし、`registerWaveTable(key, [url], { frameLen: 2048 })` で登録する。superdough はウェーブテーブルを WAV に書かれたサンプルレートのままデコードする（`decodeAtNativeRate`）ので、値はリサンプルされずにそのまま届く。
+- superdough は最初に鳴らすときに URL を読みに行くので、blob URL は差し替えか削除まで残す。2048 値に満たないファイルは登録せず、コンソールに警告を出す。端数のフレームは superdough が切り捨てる。
+- CDN の音と名前が重なったときの扱いはサンプルと同じ（ストレージ優先、削除で元に戻る）。この処理は `src/strudel/UserSoundRegistry.ts` にまとめ、サンプルとウェーブテーブルで 1 つを共有する。別々に持つと、同じ名前（`wt_x.wav` のサンプルと `x.bin` のウェーブテーブル）を互いに取り返し続けてしまうため。
+
+### 確認結果（Chrome、`strudelDev.strudelDeckA.engine.userWavetables`）
+
+音は出さず、`soundMap` の音の `onTrigger` が返すノードを AnalyserNode にだけつないで確かめた。
+
+| 項目 | 結果 |
+| --- | --- |
+| 変換 | sine / saw / square / triangle の 4 フレームを登録。blob を 48 kHz でデコードすると 8192 サンプルで、元の値との誤差は 0 |
+| フレームの切り替え | `wt` = 0, 1/3, 2/3, 1 で、波形の crest factor が 0.707 / 0.577 / 1.0 / 0.577（sine / saw / square / triangle）になった |
+| 衝突 | `digital.bin` を登録すると `wt_digital`（CDN）が自前の音になり、CDN 側が登録し直しても取り返した。削除すると CDN の音に戻った |
+| 削除 | 大文字小文字が違う名前での削除は無視された |
+| `wt_` で始まる名前 | `wt_Pre` は `wt_pre` として登録された（`wt_wt_pre` にはならない） |
+| 短いファイル | 100 値のファイルは登録されなかった |
+| 起動時の読み込み | OPFS に `wavetables/ZZ Claude-OPFS.bin` を置いてリロードすると、`wt_zz_claude_opfs` として登録された |
+
+未確認：実際に音を出しての再生、アセット一覧の UI からの取り込みと削除。最初の 1 回の確認だけ、AudioContext を再開した直後の発音が無音だった（2 回目以降と、新しく登録したテーブルの初回は鳴った）。
+
+### 制限
+
+- サンプルと同じく、差し替えや削除をしてもデコード済みのテーブルは superdough のキャッシュに残る。リロードで解放される。
+- `wt_x.wav`（サンプル）と `x.bin`（ウェーブテーブル）は同じ名前になり、後から読み込まれたほうが鳴る。残ったほうを削除しても、もう一方は戻らない（CDN の音か無音になる）。
 
 ## 描画（widget）（2026-10-01）
 
