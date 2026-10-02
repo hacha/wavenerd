@@ -52,6 +52,26 @@ function useFocusDeckShortcuts({
   }, [focusDeckAEditor, focusDeckBEditor]);
 }
 
+// an accidental Mod-R outside the editor would reload the page and stop the sound, so swallow it (and Mod-S / Mod-P)
+// the editors handle these keys themselves before the event reaches the window
+function usePreventBrowserShortcuts() {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === 'r' || key === 's' || key === 'p') {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+}
+
 // == children =====================================================================================
 type DeckRef = { focusEditor: (highlight: boolean) => void };
 
@@ -160,6 +180,7 @@ export function OutOfContextApp() {
     focusDeckAEditor,
     focusDeckBEditor,
   });
+  usePreventBrowserShortcuts();
 
   return (
     <>
