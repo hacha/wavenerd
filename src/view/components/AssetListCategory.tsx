@@ -23,19 +23,22 @@ export function AssetListCategory({
   title,
   noun = title,
   dir,
+  defaultExpand = true,
   className,
 }: {
   title: string;
   /** What the assets are called in messages, if the title does not say it */
   noun?: string;
   dir: string;
+  /** Whether the category starts expanded */
+  defaultExpand?: boolean;
   className?: string;
 }) {
   const { storageManager } = useContext(StuffContext)!;
 
   const assets = useLs(dir);
 
-  const [expand, setExpand] = useState(true);
+  const [expand, setExpand] = useState(defaultExpand);
   const handleChangeExpand = useCallback(
     () => {
       setExpand(!expand);

@@ -10,6 +10,7 @@ export function AssetList({ className }: {
       <AssetListCategory
         title="Shaders"
         dir="shaders"
+        defaultExpand={false}
       />
       <AssetListCategory
         title="Strudel"
@@ -27,6 +28,7 @@ export function AssetList({ className }: {
       <AssetListCategory
         title="Images"
         dir="images"
+        defaultExpand={false}
       />
     </div>
   );
