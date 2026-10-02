@@ -22,7 +22,7 @@ Since Wavenerd is designed for live performance, it has several features to make
 - ✍️ Editor support for Strudel: completion, highlighting of the playing elements, and the same color scheme as the Strudel REPL
 - 👁️ Oscilloscope, spectrum analyzer, vectorscope
 - 🎨 Variety of color themes, including chroma key-friendly ones
-- 📂 Samples, wavetables, and images can be used in shaders
+- 📂 Samples, wavetables, and images can be used in shaders. Samples and wavetables can be played in Strudel too: `s("kick")`, `s("wt_saw")`
 - 🗂️ Strudel sketches are kept in the asset list and opened with `Mod-P`
 - 🤖 Live coding together with Claude Code: Claude Code writes `live/A.strudel.js` / `live/B.strudel.js`, which get cued to the Strudel decks. Only works with the local dev server (`pnpm dev`), not on the published site. See [doc/strudel-integration.md](doc/strudel-integration.md)
 

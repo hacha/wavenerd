@@ -5,6 +5,8 @@ import { EventEmittable } from '../utils/EventEmittable';
 import { DeckClock } from './DeckClock';
 import { prebake } from './prebake';
 import { UserSamples } from './UserSamples';
+import { UserSoundRegistry } from './UserSoundRegistry';
+import { UserWavetables } from './UserWavetables';
 import { getStrudelDrawContext, registerStrudelVisuals } from './StrudelVisuals';
 
 const { evalScope, Pattern } = coreModule;
@@ -46,6 +48,11 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
    * Samples of the storage. They do not need the network.
    */
   public readonly userSamples: UserSamples;
+
+  /**
+   * Wavetables of the storage, played as `s("wt_<name>")`. They do not need the network.
+   */
+  public readonly userWavetables: UserWavetables;
 
   /**
    * Resolves when Strudel can evaluate code. Does not wait for the sounds to be loaded.
@@ -92,7 +99,9 @@ export class StrudelEngine extends EventEmittable<StrudelEngineEvents> {
     setAudioContext(audio);
 
     this.clock = new DeckClock(hostDeck);
-    this.userSamples = new UserSamples(audio);
+    const userSounds = new UserSoundRegistry();
+    this.userSamples = new UserSamples(audio, userSounds);
+    this.userWavetables = new UserWavetables(userSounds);
     this.ready = this.__init();
 
     window.addEventListener('online', () => {

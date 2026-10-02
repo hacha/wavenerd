@@ -222,6 +222,7 @@ async function handleUpdateStorage(path: string) {
     if (buffer == null) {
       console.error(`Failed to load wavetable: ${path}`);
     } else {
+      strudelEngine.userWavetables.set(name, buffer);
       deckA.loadWavetable(name, new Float32Array(buffer));
     }
   } else if (path.startsWith('images/')) {
@@ -243,6 +244,7 @@ function handleDeleteStorage(path: string) {
     strudelEngine.userSamples.delete(name);
   } else if (path.startsWith('wavetables/')) {
     deckA.deleteWavetable(name);
+    strudelEngine.userWavetables.delete(name);
   } else if (path.startsWith('images/')) {
     deckA.deleteImage(name);
   }

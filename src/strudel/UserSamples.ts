@@ -1,30 +1,19 @@
-import { loadBuffer, onTriggerSample, registerSound, soundMap } from '@strudel/webaudio';
-
-interface UserSample {
-  /** Name of the asset, before superdough lowercases it. */
-  name: string;
-
-  /** The entry of `soundMap` that plays the sample. */
-  sound: unknown;
-
-  /** The sound that had the same name, such as `bd` of the Strudel CDN. Comes back when the sample is deleted. */
-  shadowed: unknown;
-}
+import { loadBuffer, onTriggerSample, registerSound } from '@strudel/webaudio';
+import { type UserSound, type UserSoundRegistry } from './UserSoundRegistry';
 
 /**
  * Samples of the storage, registered as Strudel sounds under the same names as in GLSL decks: `s("kick")`.
  *
- * A sample wins over a sound of the Strudel CDN that has the same name, whichever is loaded first.
+ * A sample wins over a sound of the Strudel CDN that has the same name (see {@link UserSoundRegistry}).
  */
 export class UserSamples {
   private __audio: AudioContext;
-  private __samples = new Map<string, UserSample>();
+  private __registry: UserSoundRegistry;
+  private __samples = new Map<string, UserSound>();
 
-  public constructor(audio: AudioContext) {
+  public constructor(audio: AudioContext, registry: UserSoundRegistry) {
     this.__audio = audio;
-
-    // The sounds of the CDN are registered at any time: at startup, and again when the network is back.
-    soundMap.listen(() => this.__claim());
+    this.__registry = registry;
   }
 
   /**
@@ -47,21 +36,12 @@ export class UserSamples {
     const url = URL.createObjectURL(new Blob([data]));
     const bank = [url];
 
-    const current = soundMap.get()[key];
-    const existing = this.__samples.get(key);
-    const shadowed = existing != null && existing.sound === current ? existing.shadowed : current;
-
-    // otherwise `__claim` takes the name back for the sample that is being replaced
-    this.__samples.delete(key);
-
     // not `samples()`, which makes a wavetable out of a name that starts with `wt_`
-    registerSound(
+    const sample = this.__registry.add(key, name, () => registerSound(
       key,
       (t: number, value: unknown, onended: () => void) => onTriggerSample(t, value, onended, bank),
       { type: 'sample', samples: bank, tag: 'user' },
-    );
-
-    const sample: UserSample = { name, sound: soundMap.get()[key], shadowed };
+    ));
     this.__samples.set(key, sample);
 
     // Decode now. Otherwise the first hit of the sample is dropped while it is decoded.
@@ -92,24 +72,8 @@ export class UserSamples {
     this.__remove(key, sample);
   }
 
-  private __remove(key: string, sample: UserSample): void {
+  private __remove(key: string, sample: UserSound): void {
     this.__samples.delete(key);
-
-    if (soundMap.get()[key] === sample.sound) {
-      soundMap.setKey(key, sample.shadowed);
-    }
-  }
-
-  /**
-   * Take the names back from the sounds that were registered over the samples.
-   */
-  private __claim(): void {
-    for (const [key, sample] of this.__samples) {
-      const current = soundMap.get()[key];
-      if (current === sample.sound) { continue; }
-
-      sample.shadowed = current;
-      soundMap.setKey(key, sample.sound);
-    }
+    this.__registry.remove(key, sample);
   }
 }
