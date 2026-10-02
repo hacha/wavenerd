@@ -56,7 +56,8 @@ function TextInput({
   const setLibraryOpening = useSetAtom(libraryOpeningAtom);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' || ((event.metaKey || event.ctrlKey) && event.key === 'p')) {
+      // Mod-P toggles the library, so it closes it like Escape does
       event.preventDefault();
       setLibraryOpening(false);
       focusEditor(false);
