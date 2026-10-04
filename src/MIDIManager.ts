@@ -1,5 +1,6 @@
 import { EventEmittable } from './utils/EventEmittable';
 import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIManagerStorage';
+import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
 import { type StorageManager } from './StorageManager';
 import { throttle } from 'throttle-debounce';
 
@@ -7,6 +8,7 @@ export interface MidiManagerStorageType {
   version?: number;
   values?: { [ key: string ]: number };
   mappings?: { [ key: string ]: string };
+  appliedPresets?: string[];
 }
 
 interface MidiManagerEvents {
@@ -43,6 +45,18 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
     return this.__mappings;
   }
 
+  /**
+   * Params a note toggles on press instead of following the velocity.
+   */
+  public toggleParams: Set<string>;
+
+  /**
+   * Names of the presets already applied once, so mappings the user removed do not come back.
+   */
+  private __appliedPresets: string[];
+
+  private __isStorageInitialized = false;
+
   private __learningParam: string | null = null;
 
   private __throttledSave?: () => void;
@@ -51,11 +65,13 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
     super();
 
     this.defaultValues = {};
+    this.toggleParams = new Set();
 
     this.__deviceSet = new Set();
 
     this.__values = {};
     this.__mappings = {};
+    this.__appliedPresets = [];
   }
 
   public async initStorage(storageManager: StorageManager): Promise<void> {
@@ -63,6 +79,7 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
 
     this.__values = data.values ?? {};
     this.__mappings = data.mappings ?? {};
+    this.__appliedPresets = data.appliedPresets ?? [];
 
     this.__emit('initStorage');
 
@@ -71,9 +88,13 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
         version: MIDI_VERSION_LATEST,
         values: this.__values,
         mappings: this.__mappings,
+        appliedPresets: this.__appliedPresets,
       });
       await storageManager.save('midi.json', rawData);
     });
+
+    this.__isStorageInitialized = true;
+    this.__applyPresetsOfDetectedDevices();
   }
 
   public midi(key: string): number {
@@ -96,6 +117,47 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
       this.__deviceSet.add({ deviceId, deviceName });
       this.__emit('deviceDetect', { deviceId, deviceName });
     });
+
+    this.__applyPresetsOfDetectedDevices();
+  }
+
+  /**
+   * Assign all the mappings of the preset, overwriting the existing ones of the same MIDI keys.
+   */
+  public applyPreset(preset: MidiPreset): void {
+    for (const [midiKey, paramKey] of Object.entries(preset.mappings)) {
+      this.assignMapping(midiKey, paramKey);
+    }
+
+    if (!this.__appliedPresets.includes(preset.name)) {
+      this.__appliedPresets.push(preset.name);
+      this.__throttledSave?.();
+    }
+  }
+
+  /**
+   * Apply the preset of each detected device once, keeping the mappings the user already has.
+   * Waits for both the storage and the device detection.
+   */
+  private __applyPresetsOfDetectedDevices(): void {
+    if (!this.__isStorageInitialized) { return; }
+
+    for (const preset of MIDI_PRESETS) {
+      if (this.__appliedPresets.includes(preset.name)) { continue; }
+
+      const isDetected = Array.from(this.__deviceSet)
+        .some(({ deviceName }) => preset.deviceNamePattern.test(deviceName));
+      if (!isDetected) { continue; }
+
+      for (const [midiKey, paramKey] of Object.entries(preset.mappings)) {
+        if (this.__mappings[midiKey] == null) {
+          this.assignMapping(midiKey, paramKey);
+        }
+      }
+
+      this.__appliedPresets.push(preset.name);
+      this.__throttledSave?.();
+    }
   }
 
   public learn(paramKey: string): void {
@@ -162,6 +224,15 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
         value = velocity;
 
         this.__emit('noteOn', { deviceId, deviceName, channel, note, velocity, paramKey });
+
+        // A toggle param flips on press and ignores the release (Note On with velocity 0)
+        if (paramKey != null && this.toggleParams.has(paramKey)) {
+          if (velocity > 0.0) {
+            value = this.midi(paramKey) > 0.0 ? 0.0 : 1.0;
+          } else {
+            paramKey = null;
+          }
+        }
       } else if (isNoteOff) {
         const note = event.data[1];
         const velocity = event.data[2] / 127.0;
@@ -171,6 +242,10 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
         value = 0.0;
 
         this.__emit('noteOff', { deviceId, deviceName, channel, note, velocity, paramKey });
+
+        if (paramKey != null && this.toggleParams.has(paramKey)) {
+          paramKey = null;
+        }
       } else if (isCC) {
         const cc = event.data[1];
         midiKey = `cc-${channel}-${cc}`;
@@ -213,4 +288,8 @@ MIDIMAN.defaultValues = {
 
   '/mixer/master/volume': 1.0,
 };
+MIDIMAN.toggleParams = new Set([
+  '/cue/channel_a',
+  '/cue/channel_b',
+]);
 MIDIMAN.initMidi();
