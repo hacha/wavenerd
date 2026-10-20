@@ -44,8 +44,9 @@ export function DeckKnobs({ slot, className }: {
   const code = useAtomValue(codeAtoms[slot][mode]);
   const knobsInCode = useMemo(() => referencedKnobs(mode, code), [mode, code]);
 
+  // 2 rows of 4, same as the performance pads of DDJ-FLX2 (pad 1-4 above, pad 5-8 below)
   return (
-    <div className={clsx('flex justify-center items-center gap-1', className)}>
+    <div className={clsx('grid grid-cols-[repeat(4,auto)] justify-center content-center gap-x-1 gap-y-0.5', className)}>
       {paramNames.map((paramName, index) => (
         <DeckKnob
           key={paramName}
