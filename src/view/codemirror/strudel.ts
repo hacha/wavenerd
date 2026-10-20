@@ -1,4 +1,5 @@
-import { type EditorState, type Extension } from '@uiw/react-codemirror';
+import { type EditorState, type Extension, type Range } from '@uiw/react-codemirror';
+import { Decoration, type DecorationSet, type EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { javascript, javascriptLanguage, type scopeCompletionSource } from '@codemirror/lang-javascript';
 import * as webaudioModule from '@strudel/webaudio';
@@ -90,6 +91,48 @@ function createCompletionSource(engine: StrudelEngine): CompletionSource {
   };
 }
 
+// == knobs ========================================================================================
+const knobMark = Decoration.mark({ class: 'cm-strudel-knob' });
+
+/**
+ * Mark the knobs (`knob0` .. `knob7`) in the visible code. Only variable names, not in strings or comments.
+ */
+function knobDecorations(view: EditorView): DecorationSet {
+  const ranges: Range<Decoration>[] = [];
+  const tree = syntaxTree(view.state);
+  for (const { from, to } of view.visibleRanges) {
+    tree.iterate({
+      from,
+      to,
+      enter: (node) => {
+        if (node.name === 'VariableName' && knobNames.has(view.state.doc.sliceString(node.from, node.to))) {
+          ranges.push(knobMark.range(node.from, node.to));
+        }
+      },
+    });
+  }
+  return Decoration.set(ranges);
+}
+
+/**
+ * Color the knobs apart from the functions, which have the same color as variables in the REPL theme.
+ */
+const knobHighlight = ViewPlugin.fromClass(class {
+  public decorations: DecorationSet;
+
+  public constructor(view: EditorView) {
+    this.decorations = knobDecorations(view);
+  }
+
+  public update(update: ViewUpdate): void {
+    if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+      this.decorations = knobDecorations(update.view);
+    }
+  }
+}, {
+  decorations: (plugin) => plugin.decorations,
+});
+
 // == extension ====================================================================================
 /**
  * Language support of the Strudel deck editor: JavaScript, Strudel completion,
@@ -100,6 +143,7 @@ export function strudel(deck: StrudelDeck, frameEmitter: FrameEmitter): Extensio
   return [
     javascript(),
     javascriptLanguage.data.of({ autocomplete: createCompletionSource(deck.engine) }),
+    knobHighlight,
     strudelHighlight(deck, frameEmitter),
     strudelWidgets(deck, frameEmitter),
   ];
