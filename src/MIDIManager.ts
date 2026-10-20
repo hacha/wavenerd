@@ -3,6 +3,7 @@ import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIMan
 import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
 import { setupDDJFLX2PadJog } from './midiDDJFLX2PadJog';
 import { setupDDJFLX2ShiftCFX } from './midiDDJFLX2ShiftCFX';
+import { setupDDJFLX2CueLights } from './midiDDJFLX2CueLights';
 import { type StorageManager } from './StorageManager';
 import { throttle } from 'throttle-debounce';
 
@@ -71,6 +72,8 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
 
   private __isStorageInitialized = false;
 
+  private __outputs: WebMidi.MIDIOutput[] = [];
+
   private __learningParam: string | null = null;
 
   private __throttledSave?: () => void;
@@ -119,6 +122,9 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
   public async initMidi(): Promise<void> {
     const access = await navigator.requestMIDIAccess();
 
+    // before the inputs, so `deviceDetect` listeners can send to the device
+    this.__outputs = Array.from(access.outputs.values());
+
     const inputs = access.inputs;
     Array.from(inputs.values()).forEach((input) => {
       const deviceId = input.id;
@@ -134,6 +140,17 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
     });
 
     this.__applyPresetsOfDetectedDevices();
+  }
+
+  /**
+   * Send a MIDI message to the outputs whose name matches, e.g. to light a button of a controller.
+   */
+  public send(deviceNamePattern: RegExp, data: number[]): void {
+    for (const output of this.__outputs) {
+      if (deviceNamePattern.test(output.name ?? '')) {
+        output.send(data);
+      }
+    }
   }
 
   /**
@@ -315,4 +332,5 @@ MIDIMAN.toggleParams = new Set([
 ]);
 setupDDJFLX2PadJog(MIDIMAN);
 setupDDJFLX2ShiftCFX(MIDIMAN);
+setupDDJFLX2CueLights(MIDIMAN);
 MIDIMAN.initMidi();
