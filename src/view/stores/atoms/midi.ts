@@ -36,3 +36,7 @@ export const midiMappingsSortedAtom = atom((get) => {
     return aNum - bNum;
   });
 });
+
+// == DDJ-FLX2 =====================================================================================
+/** Indices (0-7) of the pads held with SHIFT, per deck. */
+export const ddjFlx2ShiftPadsAtom = atom<{ a: number[]; b: number[] }>({ a: [], b: [] });

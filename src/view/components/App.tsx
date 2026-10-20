@@ -16,6 +16,8 @@ import { Stalker } from './Stalker';
 import { XFader } from './XFader';
 import { useDeckSubscribers } from '../stores/hooks/useDeckSubscribers';
 import { useMidiSubscribers } from '../stores/hooks/useMidiSubscribers';
+import { useDDJFLX2PadsSubscriber } from '../stores/hooks/useDDJFLX2PadsSubscriber';
+import { DDJ_FLX2_PADS } from '../../midiDDJFLX2Pads';
 import { useSettings } from '../stores/hooks/useSettings';
 import { useSettingsSubscribers } from '../stores/hooks/useSettingsSubscribers';
 import { useRecorderSubscribers } from '../stores/hooks/useRecorderSubscribers';
@@ -155,6 +157,7 @@ export function OutOfContextApp() {
   const showCenterColumn = libraryShow || mixerShow;
 
   useMidiSubscribers(MIDIMAN);
+  useDDJFLX2PadsSubscriber(DDJ_FLX2_PADS);
   useSettingsSubscribers(SETTINGSMAN);
   useDeckSubscribers(
     deckA,
@@ -200,7 +203,7 @@ export function OutOfContextApp() {
                 strudelAtoms={deckAStrudelAtoms}
                 analyser={mixer.analyserInA}
               />
-              <DeckKnobs className="h-16" paramPrefix="/deck_a" />
+              <DeckKnobs className="h-24" slot="a" />
             </div>
             {showCenterColumn && (
               <div className="flex justify-end flex-col w-48">
@@ -226,7 +229,7 @@ export function OutOfContextApp() {
                   strudelAtoms={deckBStrudelAtoms}
                   analyser={mixer.analyserInB}
                 />
-                <DeckKnobs className="h-16" paramPrefix="/deck_b" />
+                <DeckKnobs className="h-24" slot="b" />
               </div>
             )}
           </div>
