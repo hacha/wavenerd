@@ -2,6 +2,7 @@ import { EventEmittable } from './utils/EventEmittable';
 import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIManagerStorage';
 import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
 import { setupDDJFLX2PadJog } from './midiDDJFLX2PadJog';
+import { setupDDJFLX2ShiftCFX } from './midiDDJFLX2ShiftCFX';
 import { type StorageManager } from './StorageManager';
 import { throttle } from 'throttle-debounce';
 
@@ -11,6 +12,16 @@ export interface MidiManagerStorageType {
   mappings?: { [ key: string ]: string };
   appliedPresets?: string[];
 }
+
+/**
+ * Sees every MIDI message before its mapping. Returning `true` keeps the mapping from changing its param.
+ */
+export type MidiInterceptor = (message: {
+  deviceName: string;
+  status: number;
+  data1: number;
+  data2: number;
+}) => boolean;
 
 interface MidiManagerEvents {
   deviceDetect: { deviceId: string; deviceName: string };
@@ -51,6 +62,8 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
    */
   public toggleParams: Set<string>;
 
+  public interceptors: MidiInterceptor[];
+
   /**
    * Names of the presets already applied once, so mappings the user removed do not come back.
    */
@@ -67,6 +80,7 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
 
     this.defaultValues = {};
     this.toggleParams = new Set();
+    this.interceptors = [];
 
     this.__deviceSet = new Set();
 
@@ -201,9 +215,15 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
     let paramKey: string | null = null;
     let midiKey: string | null = null;
     let value = 0;
+    let isIntercepted = false;
 
     if (event.data) {
       this.__emit('message', { deviceId, deviceName });
+
+      const [status, data1, data2] = event.data;
+      for (const interceptor of this.interceptors) {
+        isIntercepted = interceptor({ deviceName, status, data1, data2 }) || isIntercepted;
+      }
 
       const isNoteOff = event.data[0] >= 128 && event.data[0] <= 143;
       const isNoteOn = event.data[0] >= 144 && event.data[0] <= 159;
@@ -263,7 +283,7 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
       }
     }
 
-    if (paramKey) {
+    if (paramKey && !isIntercepted) {
       this.setValue(paramKey, value, midiKey);
     }
   }
@@ -294,4 +314,5 @@ MIDIMAN.toggleParams = new Set([
   '/cue/channel_b',
 ]);
 setupDDJFLX2PadJog(MIDIMAN);
+setupDDJFLX2ShiftCFX(MIDIMAN);
 MIDIMAN.initMidi();
