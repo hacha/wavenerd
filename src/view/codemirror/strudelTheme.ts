@@ -93,6 +93,10 @@ const replLook = EditorView.theme({
   '& .cm-cursor, & .cm-dropCursor': {
     borderLeftColor: s.caret,
   },
+  // the knobs (`strudel.ts`), apart from the functions. the token color span can be inside or outside of the mark
+  '& .cm-strudel-knob, & .cm-strudel-knob *': {
+    color: '#f78c6c',
+  },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, & .cm-selectionBackground, & .cm-content ::selection': {
     backgroundColor: s.selection,
   },
