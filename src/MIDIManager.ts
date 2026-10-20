@@ -1,6 +1,7 @@
 import { EventEmittable } from './utils/EventEmittable';
 import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIManagerStorage';
 import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
+import { setupDDJFLX2PadJog } from './midiDDJFLX2PadJog';
 import { type StorageManager } from './StorageManager';
 import { throttle } from 'throttle-debounce';
 
@@ -16,7 +17,7 @@ interface MidiManagerEvents {
   message: { deviceId: string; deviceName: string };
   noteOn: { deviceId: string; deviceName: string; channel: number; note: number; velocity: number; paramKey: string | null };
   noteOff: { deviceId: string; deviceName: string; channel: number; note: number; velocity: number; paramKey: string | null };
-  cc: { deviceId: string; deviceName: string; channel: number; cc: number; value: number; paramKey: string | null };
+  cc: { deviceId: string; deviceName: string; channel: number; cc: number; value: number; rawValue: number; paramKey: string | null };
   paramChange: { paramKey: string; value: number; midiKey: string | null };
   mappingAssign: { midiKey: string; paramKey: string };
   mappingUnassign: { midiKey: string };
@@ -258,7 +259,7 @@ export class MidiManager extends EventEmittable<MidiManagerEvents> {
         paramKey = this.__mappings[midiKey] ?? null;
         value = Math.max(event.data[2] - 1.0, 0.0) / 126.0;
 
-        this.__emit('cc', { deviceId, deviceName, channel, cc, value, paramKey });
+        this.__emit('cc', { deviceId, deviceName, channel, cc, value, rawValue: event.data[2], paramKey });
       }
     }
 
@@ -292,4 +293,5 @@ MIDIMAN.toggleParams = new Set([
   '/cue/channel_a',
   '/cue/channel_b',
 ]);
+setupDDJFLX2PadJog(MIDIMAN);
 MIDIMAN.initMidi();

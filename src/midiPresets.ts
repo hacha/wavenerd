@@ -8,9 +8,11 @@ export interface MidiPreset {
 // See: https://assets.pioneerdjhub.com/DDJ-FLX2_MIDI_Message_List_E1.pdf
 // Knobs and faders send 14-bit values as MSB + LSB (cc + 32), only the MSB is mapped.
 // MIDI channel 1 / 2 / 7 of the list are channel 0 / 1 / 6 here.
+export const DDJ_FLX2_DEVICE_NAME_PATTERN = /DDJ-FLX2/i;
+
 const presetDDJFLX2: MidiPreset = {
   name: 'DDJ-FLX2',
-  deviceNamePattern: /DDJ-FLX2/i,
+  deviceNamePattern: DDJ_FLX2_DEVICE_NAME_PATTERN,
   mappings: {
     'cc-0-7': '/mixer/channel_a/eq/high',
     'cc-0-11': '/mixer/channel_a/eq/mid',
