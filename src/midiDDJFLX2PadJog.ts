@@ -7,7 +7,7 @@ import { saturate } from '@0b5vr/experimental';
 // See: https://assets.pioneerdjhub.com/DDJ-FLX2_MIDI_Message_List_E1.pdf
 
 /**
- * Knob change per jog tick. Shift + jog is finer.
+ * Knob change per jog tick. The wheel side and shift + platter are finer.
  */
 const KNOB_DELTA_PER_TICK = 1.0 / 512.0;
 const KNOB_DELTA_PER_TICK_FINE = KNOB_DELTA_PER_TICK / 4.0;
@@ -36,11 +36,15 @@ const JOG_CHANNELS: { [ channel: number ]: 'a' | 'b' } = {
 };
 
 /**
- * Jog CCs: wheel side, platter (vinyl on / off), and shift + platter.
- * Each sends 0x40 + the ticks turned since the previous message.
+ * Knob change per tick of each jog CC.
+ * Each CC sends 0x40 + the ticks turned since the previous message.
  */
-const JOG_CCS = new Set([33, 34, 35]);
-const JOG_CC_SHIFT = 41;
+const JOG_CC_DELTAS: { [ cc: number ]: number } = {
+  34: KNOB_DELTA_PER_TICK, // platter (vinyl on)
+  35: KNOB_DELTA_PER_TICK, // platter (vinyl off)
+  33: KNOB_DELTA_PER_TICK_FINE, // wheel side
+  41: KNOB_DELTA_PER_TICK_FINE, // shift + platter
+};
 
 function padIndexOf(note: number): number | null {
   for (const base of PAD_NOTE_BASES) {
@@ -86,14 +90,8 @@ export function setupDDJFLX2PadJog(midiManager: MidiManager): void {
     const deck = JOG_CHANNELS[channel];
     if (deck == null || heldPads[deck].size === 0) { return; }
 
-    let deltaPerTick: number;
-    if (JOG_CCS.has(cc)) {
-      deltaPerTick = KNOB_DELTA_PER_TICK;
-    } else if (cc === JOG_CC_SHIFT) {
-      deltaPerTick = KNOB_DELTA_PER_TICK_FINE;
-    } else {
-      return;
-    }
+    const deltaPerTick = JOG_CC_DELTAS[cc];
+    if (deltaPerTick == null) { return; }
 
     const delta = (rawValue - 0x40) * deltaPerTick;
 
