@@ -200,7 +200,7 @@ export function OutOfContextApp() {
                 strudelAtoms={deckAStrudelAtoms}
                 analyser={mixer.analyserInA}
               />
-              <DeckKnobs className="h-16" paramPrefix="/deck_a" />
+              <DeckKnobs className="h-16" slot="a" />
             </div>
             {showCenterColumn && (
               <div className="flex justify-end flex-col w-48">
@@ -226,7 +226,7 @@ export function OutOfContextApp() {
                   strudelAtoms={deckBStrudelAtoms}
                   analyser={mixer.analyserInB}
                 />
-                <DeckKnobs className="h-16" paramPrefix="/deck_b" />
+                <DeckKnobs className="h-16" slot="b" />
               </div>
             )}
           </div>

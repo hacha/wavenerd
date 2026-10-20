@@ -1,5 +1,10 @@
 import clsx from 'clsx';
+import { useAtomValue } from 'jotai';
+import { useMemo } from 'react';
 import { DeckKnob } from './DeckKnob';
+import { deckAGlslAtoms, deckAStrudelAtoms, deckBGlslAtoms, deckBStrudelAtoms } from '../stores/atoms/deck';
+import { useSettings } from '../stores/hooks/useSettings';
+import { referencedKnobs } from '../utils/referencedKnobs';
 
 const paramNames = [
   'knob0',
@@ -23,10 +28,22 @@ const labels = [
   '7',
 ];
 
-export function DeckKnobs({ paramPrefix, className }: {
-  paramPrefix: string;
+const codeAtoms = {
+  a: { glsl: deckAGlslAtoms.code, strudel: deckAStrudelAtoms.code },
+  b: { glsl: deckBGlslAtoms.code, strudel: deckBStrudelAtoms.code },
+};
+
+export function DeckKnobs({ slot, className }: {
+  slot: 'a' | 'b';
   className?: string;
 }) {
+  const paramPrefix = `/deck_${slot}`;
+
+  // The code in the editor, so a knob lights up as soon as it is written and can be set before applying
+  const mode = useSettings(slot === 'a' ? 'deckAMode' : 'deckBMode');
+  const code = useAtomValue(codeAtoms[slot][mode]);
+  const knobsInCode = useMemo(() => referencedKnobs(mode, code), [mode, code]);
+
   return (
     <div className={clsx('flex justify-center items-center gap-1', className)}>
       {paramNames.map((paramName, index) => (
@@ -36,6 +53,7 @@ export function DeckKnobs({ paramPrefix, className }: {
           label={labels[index]}
           paramName={paramName}
           stalker={`param_${paramName}`}
+          isReferenced={knobsInCode.has(paramName)}
         />
       ))}
     </div>
