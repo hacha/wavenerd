@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
 import { DeckKnob } from './DeckKnob';
+import { DeckShiftPads } from './DeckShiftPads';
 import { deckAGlslAtoms, deckAStrudelAtoms, deckBGlslAtoms, deckBStrudelAtoms } from '../stores/atoms/deck';
 import { useSettings } from '../stores/hooks/useSettings';
 import { referencedKnobs } from '../utils/referencedKnobs';
@@ -46,17 +47,20 @@ export function DeckKnobs({ slot, className }: {
 
   // 2 rows of 4, same as the performance pads of DDJ-FLX2 (pad 1-4 above, pad 5-8 below)
   return (
-    <div className={clsx('grid grid-cols-[repeat(4,auto)] justify-center content-center gap-x-1 gap-y-0.5', className)}>
-      {paramNames.map((paramName, index) => (
-        <DeckKnob
-          key={paramName}
-          paramPrefix={paramPrefix}
-          label={labels[index]}
-          paramName={paramName}
-          stalker={`param_${paramName}`}
-          isReferenced={knobsInCode.has(paramName)}
-        />
-      ))}
+    <div className={clsx('flex justify-center items-center gap-4', className)}>
+      <div className="grid grid-cols-[repeat(4,auto)] gap-x-1 gap-y-0.5">
+        {paramNames.map((paramName, index) => (
+          <DeckKnob
+            key={paramName}
+            paramPrefix={paramPrefix}
+            label={labels[index]}
+            paramName={paramName}
+            stalker={`param_${paramName}`}
+            isReferenced={knobsInCode.has(paramName)}
+          />
+        ))}
+      </div>
+      <DeckShiftPads slot={slot} />
     </div>
   );
 }

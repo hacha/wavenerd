@@ -1,4 +1,5 @@
 import { DDJ_FLX2_DEVICE_NAME_PATTERN } from './midiPresets';
+import { type DDJFLX2Deck, type DDJFLX2Pads } from './midiDDJFLX2Pads';
 import { type MidiManager } from './MIDIManager';
 import { saturate } from '@0b5vr/experimental';
 
@@ -13,24 +14,9 @@ const KNOB_DELTA_PER_TICK = 1.0 / 512.0;
 const KNOB_DELTA_PER_TICK_FINE = KNOB_DELTA_PER_TICK / 4.0;
 
 /**
- * MIDI channels of the pads (without / with shift), 0-based.
- */
-const PAD_CHANNELS: { [ channel: number ]: 'a' | 'b' } = {
-  7: 'a',
-  8: 'a',
-  9: 'b',
-  10: 'b',
-};
-
-/**
- * The note of pad 1 in each pad mode. Pad 2-8 follow it.
- */
-const PAD_NOTE_BASES = [0, 16, 96, 48];
-
-/**
  * MIDI channels of the jogs, 0-based.
  */
-const JOG_CHANNELS: { [ channel: number ]: 'a' | 'b' } = {
+const JOG_CHANNELS: { [ channel: number ]: DDJFLX2Deck } = {
   0: 'a',
   1: 'b',
 };
@@ -46,43 +32,9 @@ const JOG_CC_DELTAS: { [ cc: number ]: number } = {
   41: KNOB_DELTA_PER_TICK_FINE, // shift + platter
 };
 
-function padIndexOf(note: number): number | null {
-  for (const base of PAD_NOTE_BASES) {
-    if (base <= note && note < base + 8) {
-      return note - base;
-    }
-  }
-  return null;
-}
-
-export function setupDDJFLX2PadJog(midiManager: MidiManager): void {
-  const heldPads = {
-    a: new Set<number>(),
-    b: new Set<number>(),
-  };
-
-  function handlePad(deviceName: string, channel: number, note: number, isPressed: boolean): void {
-    if (!DDJ_FLX2_DEVICE_NAME_PATTERN.test(deviceName)) { return; }
-
-    const deck = PAD_CHANNELS[channel];
-    const padIndex = padIndexOf(note);
-    if (deck == null || padIndex == null) { return; }
-
-    if (isPressed) {
-      heldPads[deck].add(padIndex);
-    } else {
-      heldPads[deck].delete(padIndex);
-    }
-  }
-
-  midiManager.on('noteOn', ({ deviceName, channel, note, velocity }) => {
-    // Note On with velocity 0 is a release
-    handlePad(deviceName, channel, note, velocity > 0.0);
-  });
-
-  midiManager.on('noteOff', ({ deviceName, channel, note }) => {
-    handlePad(deviceName, channel, note, false);
-  });
+export function setupDDJFLX2PadJog(midiManager: MidiManager, pads: DDJFLX2Pads): void {
+  // pads held with SHIFT are kept for other roles
+  const heldPads = pads.held;
 
   midiManager.on('cc', ({ deviceName, channel, cc, rawValue }) => {
     if (!DDJ_FLX2_DEVICE_NAME_PATTERN.test(deviceName)) { return; }
