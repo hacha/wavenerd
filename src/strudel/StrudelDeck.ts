@@ -6,6 +6,7 @@ import { type CodeDeck, type CodeDeckEvents, type CueStatus } from '../CodeDeck'
 import { EventEmittable } from '../utils/EventEmittable';
 import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
+import { StrudelLiveFx, type StrudelLiveFxName } from './StrudelLiveFx';
 import { queryPatternOrThrow } from './patternQuery';
 import { STRUDEL_KNOB_NAMES, type StrudelEngine } from './StrudelEngine';
 import { type StrudelDrawCanvases, type StrudelVisual, collectStrudelVisuals, placeStrudelVisuals } from './StrudelVisuals';
@@ -51,6 +52,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
   public readonly output: GainNode;
 
   private readonly __scheduler: StrudelScheduler;
+  private readonly __liveFx: StrudelLiveFx;
   private readonly __repl: any;
   private __staged: {
     pattern: Pattern;
@@ -196,9 +198,12 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
 
     const trigger = getTrigger({ defaultOutput, getTime: () => audio.currentTime });
 
+    this.__liveFx = new StrudelLiveFx({ audio, clock });
+
     this.__scheduler = new StrudelScheduler({
       audio,
       clock,
+      liveFx: this.__liveFx,
       onTrigger: (hap, deadline, duration, cps, targetTime) => {
         this.__addSounding(hap, targetTime, duration);
         return trigger(hap, deadline, duration, cps, targetTime);
@@ -330,6 +335,13 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
    */
   public setParam(name: string, value: number): void {
     this.__params.set(name, value);
+  }
+
+  /**
+   * Set the Live FX that are held, usually from MIDI pads.
+   */
+  public setLiveFx(names: Iterable<StrudelLiveFxName>): void {
+    this.__liveFx.setHeld(names);
   }
 
   /**

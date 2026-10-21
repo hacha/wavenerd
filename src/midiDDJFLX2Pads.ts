@@ -47,6 +47,21 @@ export class DDJFLX2Pads extends EventEmittable<DDJFLX2PadsEvents> {
    */
   public readonly heldWithShift = { a: new Set<number>(), b: new Set<number>() };
 
+  /**
+   * Press a pad. Also used by the pads on screen.
+   */
+  public press(deck: DDJFLX2Deck, padIndex: number, isShift: boolean): void {
+    (isShift ? this.heldWithShift : this.held)[deck].add(padIndex);
+    this.__emit('change', { deck });
+  }
+
+  public release(deck: DDJFLX2Deck, padIndex: number): void {
+    // SHIFT may change between press and release, so release both
+    this.held[deck].delete(padIndex);
+    this.heldWithShift[deck].delete(padIndex);
+    this.__emit('change', { deck });
+  }
+
   public listen(midiManager: MidiManager): void {
     midiManager.on('noteOn', ({ deviceName, channel, note, velocity }) => {
       // Note On with velocity 0 is a release
@@ -68,14 +83,10 @@ export class DDJFLX2Pads extends EventEmittable<DDJFLX2PadsEvents> {
     const { deck, isShift } = padChannel;
 
     if (isPressed) {
-      (isShift ? this.heldWithShift : this.held)[deck].add(padIndex);
+      this.press(deck, padIndex, isShift);
     } else {
-      // SHIFT may change between press and release, so release both
-      this.held[deck].delete(padIndex);
-      this.heldWithShift[deck].delete(padIndex);
+      this.release(deck, padIndex);
     }
-
-    this.__emit('change', { deck });
   }
 }
 

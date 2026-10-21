@@ -1,5 +1,6 @@
 import { type DeckClock } from './DeckClock';
 import { queryPattern } from './patternQuery';
+import { type StrudelLiveFx } from './StrudelLiveFx';
 
 type Pattern = any;
 type Hap = any;
@@ -23,6 +24,7 @@ export class StrudelScheduler {
   private readonly __onTrigger: StrudelTrigger;
   private readonly __lookahead: number;
   private readonly __onError: ((error: unknown) => void) | null;
+  private readonly __liveFx: StrudelLiveFx | null;
   private __lastErrorPattern: Pattern | null = null;
   private __pattern: Pattern | null = null;
   private __next: { cycle: number; takePattern: () => Pattern | null } | null = null;
@@ -41,18 +43,21 @@ export class StrudelScheduler {
     onTrigger,
     lookahead = 0.2,
     onError,
+    liveFx,
   }: {
     audio: AudioContext;
     clock: DeckClock;
     onTrigger: StrudelTrigger;
     lookahead?: number;
     onError?: (error: unknown) => void;
+    liveFx?: StrudelLiveFx;
   }) {
     this.audio = audio;
     this.clock = clock;
     this.__onTrigger = onTrigger;
     this.__lookahead = lookahead;
     this.__onError = onError ?? null;
+    this.__liveFx = liveFx ?? null;
 
     clock.onReset(() => {
       this.__prevEnd = null;
@@ -150,8 +155,12 @@ export class StrudelScheduler {
 
     try {
       const { clock } = this;
+      const liveFx = this.__liveFx;
       const cps = clock.cps;
-      const haps: Hap[] = queryPattern(pattern, begin, end, { _cps: cps, cyclist: 'cyclist' });
+      const controls = { _cps: cps, cyclist: 'cyclist' };
+      const haps: Hap[] = liveFx != null
+        ? liveFx.query(pattern, begin, end, controls)
+        : queryPattern(pattern, begin, end, controls);
 
       for (const hap of haps) {
         if (!hap.hasOnset()) { continue; }
@@ -160,7 +169,12 @@ export class StrudelScheduler {
         if (targetTime < now) { continue; }
 
         const duration = hap.duration.valueOf() / cps;
-        this.__onTrigger(hap, targetTime - now, duration, cps, targetTime);
+        if (liveFx != null) {
+          const applied = liveFx.apply(hap, duration, cps);
+          this.__onTrigger(applied.hap, targetTime - now, applied.duration, cps, targetTime);
+        } else {
+          this.__onTrigger(hap, targetTime - now, duration, cps, targetTime);
+        }
       }
     } catch (error) {
       // report once per pattern, not every tick
