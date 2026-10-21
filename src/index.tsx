@@ -27,6 +27,8 @@ import { TickNode } from './audio/TickNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
 import { type LiveBridge } from './live/LiveBridge';
+import { DDJ_FLX2_PADS } from './midiDDJFLX2Pads';
+import { setupDDJFLX2PadFx } from './midiDDJFLX2PadFx';
 import './index.css';
 
 // == setup ========================================================================================
@@ -68,6 +70,7 @@ const strudelOfflineSwitch = strudelDevEnabled
 const strudelEngine = new StrudelEngine({ audio, hostDeck: deckA });
 const strudelDeckA = new StrudelDeck({ engine: strudelEngine, id: 'deckA' });
 const strudelDeckB = new StrudelDeck({ engine: strudelEngine, id: 'deckB' });
+setupDDJFLX2PadFx(DDJ_FLX2_PADS, { a: strudelDeckA, b: strudelDeckB });
 
 // each slot plays either GLSL or Strudel
 const sourceSwitchA = new DeckSourceSwitch(audio);
