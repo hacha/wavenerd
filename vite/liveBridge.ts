@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { type Plugin, type ViteDevServer } from 'vite';
-import { type LiveCompiledEvent, type LivePushEvent, type LiveSlot, type LiveSoundsEvent, type LiveStateEvent } from '../src/live/liveProtocol';
+import { type LiveCompiledEvent, type LiveLevelsEvent, type LivePushEvent, type LiveSlot, type LiveSoundsEvent, type LiveStateEvent } from '../src/live/liveProtocol';
 
 /**
  * Bridges the files of `live/` and the Strudel decks of the app, so a coding agent such as Claude Code can write code
@@ -11,6 +11,7 @@ import { type LiveCompiledEvent, type LivePushEvent, type LiveSlot, type LiveSou
  * - `live/A.strudel.js`, `live/B.strudel.js`: a change is sent to the deck and cued. Code cued in the app is written back.
  * - `live/status.json`: the state of the app and the result of the last compile of each deck.
  * - `live/sounds.txt`: the sounds that Strudel code can play.
+ * - `live/levels.json`: the loudness of each deck, every second while the app is open.
  *
  * Messages are the `wavenerd-live:*` custom events of the HMR channel (`src/live/liveProtocol.ts`).
  */
@@ -243,6 +244,26 @@ export function liveBridge(): Plugin {
         updateSession(event.session);
         appState = event;
         writeStatus();
+      });
+
+      hot.on('wavenerd-live:levels', (event: LiveLevelsEvent) => {
+        updateSession(event.session);
+
+        const levels = {
+          updatedAt: new Date().toISOString(),
+          playing: event.playing,
+          unit: 'integrated, shortTerm: LUFS (BS.1770). peak: sample peak, dBFS. Before the trim, the EQ, the faders and the master limiter',
+          decks: Object.fromEntries(SLOTS.map((slot) => {
+            const { activeCodeId, ...reading } = event.decks[slot];
+            return [slot, {
+              // the hash of the code being measured, as `lastCompile.hash` of `live/status.json`
+              hash: slots[slot].codeHashes.get(activeCodeId) ?? null,
+              ...reading,
+            }];
+          })),
+        };
+
+        writeAtomically(resolve(dir, 'levels.json'), JSON.stringify(levels, null, 2) + '\n');
       });
 
       hot.on('wavenerd-live:sounds', (event: LiveSoundsEvent) => {

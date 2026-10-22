@@ -525,7 +525,7 @@ note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
 
 ### 決定事項
 
-- ファイルは `live/A.strudel.js` / `live/B.strudel.js`（デッキごとに 1 つ）と `live/status.json`、`live/sounds.txt`。`live/` は git 管理外。
+- ファイルは `live/A.strudel.js` / `live/B.strudel.js`（デッキごとに 1 つ）と `live/status.json`、`live/sounds.txt`、`live/levels.json`。`live/` は git 管理外。
 - ファイルが変わったら、そのデッキのエディタに入れて **キューまで** 進める。反映（Mod-R / Shift-Mod-R）は常に人が行う。
 - 人がアプリでキュー（Mod-S）したコードはファイルに書き戻す。Claude は常に最新のキュー済みのコードを元に編集できる。
 - 対象は Strudel デッキだけ。GLSL は同じ仕組みで後から足せる。
@@ -537,6 +537,7 @@ note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
 - コンパイルのたびに結果（エラー文、`StrudelCompiledCode.id`）をサーバーへ送る。プッシュされたコードなら、サーバーがファイルを読んだときのハッシュを付けて返すので、エディタが改行などを変えても照合がずれない。人がキューしたコードなら、サーバーがファイルに書き戻してからハッシュを取る。サーバーは前回読み書きした内容と比べて、書き戻しによる変更通知を無視する。
 - `status.json`：`connected`（HMR クライアント数 > 0）、`serverPid`（dev server を kill すると `connected: true` が残るので、読み手はこのプロセスが生きているかも見る）、`transport`（`playing` / `bpm` / `xfader`）、デッキごとの `mode` / `cueStatus` / `error` / `lastCompile` / `fileState`。`fileState` はファイルの内容が `applied`（反映済み）/ `cued` / `error` / `not compiled` のどれか。反映済みかは、`codeId` → ハッシュの対応と `StrudelDeck.activeCodeId` で判断する。`codeId` はページを読み込み直すと 1 から数え直すので、アプリごとの `session` が変わったら対応を捨てる。状態は 0.5 秒ごとに見て、変わったときだけ送る。書き込みは一時ファイル経由の rename で行い、読み手が書きかけを読まないようにする。
 - `sounds.txt`：`soundMap` の名前・種類・バリエーション数。エンジンの準備後と、`soundMap` が変わって 1 秒後に書き直す。名前は小文字（superdough が小文字にする）。
+- `levels.json`：デッキごとのラウドネス。曲同士の音量を揃えるために使う。`DeckSourceSwitch` の出力（トリム・EQ・フェーダー・マスターリミッターより前）を `LoudnessMeter`（AudioWorklet、ITU-R BS.1770 の K 特性）で測り、`integrated`（ゲート付き、LUFS）、`shortTerm`（3 秒、LUFS）、`peak`（サンプルピーク、dBFS）、`seconds` を 1 秒ごとに送る。`activeCodeId` が変わったとき（コードの反映）とトランスポートが動き出したときに測り直す。サーバーは `activeCodeId` を `status.json` と同じハッシュに直して書く。変化し続ける値なので `status.json` とは分けた（`status.json` は変わったときだけ書く）。
 - アプリが開いていない間にファイルが変わったとき（dev server の起動時もそう見なす）：次に起動したアプリが最初のコンパイルを報告した時点で、内容が違えばファイルをプッシュし直し、キューさせる。アプリ自身のコード（OPFS）は通常どおり反映される。
 - `scripts/live-wait.mjs`：ファイルのハッシュと一致する `lastCompile` が `status.json` に現れるまで（最大 5 秒）待ち、結果を出す。`.claude/settings.json` の PostToolUse フック（`--hook`）として、Write / Edit のたびに動く。`live/[AB].strudel.js` 以外のファイルではすぐ終わる。コンパイルエラーなら `decision: "block"` でエラー文を Claude に返し、成功なら `additionalContext` で「キューした／反映済み」と返す。Bash で書き換えたときはフックが動かないので、`node scripts/live-wait.mjs a` を手で実行する。
 - `.claude/skills/strudel-live/SKILL.md`：Claude 向けの手順と wavenerd 固有の約束（1 cycle = 1 小節、`setcps` は効かない、`knob0`〜`knob7`、`sounds.txt` で名前を確かめる、対応する描画）。

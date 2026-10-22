@@ -12,6 +12,7 @@ The dev server (`pnpm dev`) bridges files and decks (`vite/liveBridge.ts`, desig
 | `live/A.strudel.js`, `live/B.strudel.js` | The code of Strudel deck A / B. Writing a file puts it into the deck's editor and **cues** it. The user applies it with Mod-R (next bar) or Shift-Mod-R. Code the user cues by hand (Mod-S) is written back here. |
 | `live/status.json` | State of the app. Read it before writing. |
 | `live/sounds.txt` | Every sound name the code can play. |
+| `live/levels.json` | Loudness of each deck, every second: `integrated` (since the code was applied or the transport started) and `shortTerm` (3 s) in LUFS, `peak` in dBFS, `seconds` measured, `hash` of the code. Measured before the trim, EQ, faders and limiter, so it describes the code, not the mix. |
 
 ## Before writing
 

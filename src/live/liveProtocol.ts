@@ -46,6 +46,23 @@ export interface LiveStateEvent {
   }>;
 }
 
+/**
+ * `wavenerd-live:levels`, app → server, every second: the loudness of the output of each deck,
+ * before the trim, the EQ, the faders and the master limiter. LUFS / dBFS, rounded to 0.1.
+ * Measured since the deck applied its code or the transport started.
+ */
+export interface LiveLevelsEvent {
+  session: string;
+  playing: boolean;
+  decks: Record<LiveSlot, {
+    activeCodeId: number;
+    seconds: number;
+    integrated: number | null;
+    shortTerm: number | null;
+    peak: number | null;
+  }>;
+}
+
 /** `wavenerd-live:sounds`, app → server: the text of `live/sounds.txt`. */
 export interface LiveSoundsEvent {
   text: string;

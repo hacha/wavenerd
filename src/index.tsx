@@ -24,6 +24,7 @@ import { LookaheadLimiterNode } from './audio/LookaheadLimiterNode';
 import { DeckRenderGate } from './audio/DeckRenderGate';
 import { DeckSourceSwitch, type DeckSourceMode } from './audio/DeckSourceSwitch';
 import { TickNode } from './audio/TickNode';
+import { LoudnessMeterNode } from './audio/LoudnessMeterNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
 import { type LiveBridge } from './live/LiveBridge';
@@ -46,6 +47,7 @@ await LookaheadLimiterNode.addModule(audio);
 await FirstOrderFilterNode.addModule(audio);
 await WavRecorderNode.addModule(audio);
 await TickNode.addModule(audio);
+await LoudnessMeterNode.addModule(audio);
 
 const master = audio.createGain();
 
@@ -411,6 +413,7 @@ if (import.meta.hot) {
     decks: { a: strudelDeckA, b: strudelDeckB },
     hostDeck: deckA,
     mixer,
+    sources: { a: sourceSwitchA.output, b: sourceSwitchB.output },
   });
 }
 

@@ -1,10 +1,11 @@
 import { soundMap } from '@strudel/webaudio';
 import { type WavenerdDeck } from '@0b5vr/wavenerd-deck';
+import { LoudnessMeter } from '../audio/LoudnessMeter';
 import { type Mixer } from '../audio/Mixer';
 import { SETTINGSMAN } from '../SettingsManager';
 import { type StrudelDeck } from '../strudel/StrudelDeck';
 import { EventEmittable } from '../utils/EventEmittable';
-import { type LiveCompiledEvent, type LivePushEvent, type LiveSlot, type LiveSoundsEvent, type LiveStateEvent } from './liveProtocol';
+import { type LiveCompiledEvent, type LiveLevelsEvent, type LivePushEvent, type LiveSlot, type LiveSoundsEvent, type LiveStateEvent } from './liveProtocol';
 
 export type { LiveSlot };
 
@@ -27,12 +28,18 @@ export class LiveBridge extends EventEmittable<LiveBridgeEvents> {
   private readonly __errors: Record<LiveSlot, string | null> = { a: null, b: null };
   private __lastState = '';
   private readonly __session = crypto.randomUUID();
+  private readonly __meters: Record<LiveSlot, LoudnessMeter>;
+  private readonly __metered: Record<LiveSlot, { activeCodeId: number; playing: boolean }>;
 
-  public constructor({ hot, decks, hostDeck, mixer }: {
+  /**
+   * @param sources The outputs of the decks, before the mixer. Their loudness goes to `live/levels.json`
+   */
+  public constructor({ hot, decks, hostDeck, mixer, sources }: {
     hot: ViteHotContext;
     decks: Record<LiveSlot, StrudelDeck>;
     hostDeck: WavenerdDeck;
     mixer: Mixer;
+    sources: Record<LiveSlot, AudioNode>;
   }) {
     super();
 
@@ -40,6 +47,18 @@ export class LiveBridge extends EventEmittable<LiveBridgeEvents> {
     this.__decks = decks;
     this.__hostDeck = hostDeck;
     this.__mixer = mixer;
+
+    this.__meters = {
+      a: new LoudnessMeter(sources.a.context as AudioContext),
+      b: new LoudnessMeter(sources.b.context as AudioContext),
+    };
+    sources.a.connect(this.__meters.a.input);
+    sources.b.connect(this.__meters.b.input);
+    this.__metered = {
+      a: { activeCodeId: decks.a.activeCodeId, playing: hostDeck.isPlaying },
+      b: { activeCodeId: decks.b.activeCodeId, playing: hostDeck.isPlaying },
+    };
+    setInterval(() => this.__sendLevels(), 1000);
 
     hot.on('wavenerd-live:push', ({ slot, code, hash }: LivePushEvent) => {
       this.__emit(slot === 'a' ? 'pushA' : 'pushB', { code, hash });
@@ -100,6 +119,39 @@ export class LiveBridge extends EventEmittable<LiveBridgeEvents> {
     this.__lastState = json;
 
     this.__hot.send('wavenerd-live:state', event);
+  }
+
+  private __sendLevels(): void {
+    const playing = this.__hostDeck.isPlaying;
+    const round = (value: number | null) => value == null ? null : Math.round(value * 10) / 10;
+
+    const deckLevels = (slot: LiveSlot): LiveLevelsEvent['decks'][LiveSlot] => {
+      const { activeCodeId } = this.__decks[slot];
+      const metered = this.__metered[slot];
+
+      // measure the code that plays now, from its start
+      if (metered.activeCodeId !== activeCodeId || (playing && !metered.playing)) {
+        this.__meters[slot].reset();
+      }
+      metered.activeCodeId = activeCodeId;
+      metered.playing = playing;
+
+      const reading = this.__meters[slot].read();
+      return {
+        activeCodeId,
+        seconds: Math.round(reading.seconds),
+        integrated: round(reading.integrated),
+        shortTerm: round(reading.shortTerm),
+        peak: round(reading.peak),
+      };
+    };
+
+    const event: LiveLevelsEvent = {
+      session: this.__session,
+      playing,
+      decks: { a: deckLevels('a'), b: deckLevels('b') },
+    };
+    this.__hot.send('wavenerd-live:levels', event);
   }
 
   /**
