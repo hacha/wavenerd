@@ -102,6 +102,9 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 - デッキの `knob4`〜`knob7` はトグル（0 か 1）。DDJ-FLX2 のパッド 5〜8（SHIFT なし）か画面の下段（ラベル 0〜3）で切り替える（`midiDDJFLX2PadToggle.ts` / `DeckToggle.tsx`）。MIDI learn したノートも押すたびに反転する（`MIDIMAN.toggleParams`）。ジョグで回せるのはパッド 1〜4 の `knob0`〜`knob3` だけ。
   - Strudel コードではトグルを `tgl0`〜`tgl3` と呼ぶ（`STRUDEL_KNOB_PARAMS`、中身は `knob4`〜`knob7`）。Strudel コードに `knob4`〜`knob7` はない。GLSL は `param_knob4`〜`param_knob7` のまま。
   - 例：`.mask(tgl1)` で on のときだけ鳴らす、`.mask(tgl0.range(1, 0))` で on のときに抜く。
+- 曲の初期値：コードに `// @init knob0=0.3 tgl1=1` と書くと（行頭のコメント、`knob0`〜`knob7` / `tgl0`〜`tgl3`、0〜1）、曲を読み込んだあと最初にコードが鳴り始めたとき（Apply の小節頭、または即時 Apply）に、その値を MIDIMAN に入れる（`knobInit.ts` / `Deck.tsx`）。GLSL デッキでも同じ。
+  - 「曲を読み込む」のはライブラリ・ファイルのドロップ・メモリスロットの 3 つ。読み込んだ瞬間ではなく鳴り始めたときに入れるのは、knob が今鳴っているコードにも効くから。そのあと直して再評価しても戻さない。
+  - 起動時の復元と `live/` からの push は対象外（前の続き / 同じファイルの書き換えなので）。
 - 制限：評価時ではなくクエリ時に `knob0` というグローバルを参照するコード（`.fmap(() => knob0 …)` の中や、別デッキで `register` した関数の中など）は、最後に評価したデッキの knob を読む。まれなので対処しない。必要になったら、ユーザーコードの先頭で knob を分割代入してレキシカルに束縛する方法がある（エラー位置がずれる・`knob0` の再宣言と衝突する、という欠点がある）。
 
 ### 7. UI

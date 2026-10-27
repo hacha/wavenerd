@@ -109,6 +109,7 @@ function DeckSlot({
     analyser,
     gainParamName: `/mixer/channel_${slot}/gain`,
     filterParamName: `/mixer/channel_${slot}/filter`,
+    knobParamPrefix: `/deck_${slot}`,
     onToggleMode: handleToggleMode,
   };
 
