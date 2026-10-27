@@ -4,7 +4,8 @@ import { type MidiManager } from './MIDIManager';
 import { saturate } from '@0b5vr/experimental';
 
 // == DDJ-FLX2 pad + jog ===========================================================================
-// Turning the jog while holding pads changes the knobs of the deck, pad 1-8 → knob0-7.
+// Turning the jog while holding pads changes the knobs of the deck, pad 1-4 → knob0-3.
+// Pad 5-8 toggle knob4-7 instead, see `midiDDJFLX2PadToggle.ts`.
 // See: https://assets.pioneerdjhub.com/DDJ-FLX2_MIDI_Message_List_E1.pdf
 
 /**
@@ -12,6 +13,11 @@ import { saturate } from '@0b5vr/experimental';
  */
 const KNOB_DELTA_PER_TICK = 1.0 / 512.0;
 const KNOB_DELTA_PER_TICK_FINE = KNOB_DELTA_PER_TICK / 4.0;
+
+/**
+ * Pads below it turn knobs with the jog.
+ */
+export const DDJ_FLX2_JOG_PAD_COUNT = 4;
 
 /**
  * MIDI channels of the jogs, 0-based.
@@ -48,6 +54,8 @@ export function setupDDJFLX2PadJog(midiManager: MidiManager, pads: DDJFLX2Pads):
     const delta = (rawValue - 0x40) * deltaPerTick;
 
     for (const padIndex of heldPads[deck]) {
+      if (padIndex >= DDJ_FLX2_JOG_PAD_COUNT) { continue; }
+
       const paramKey = `/deck_${deck}/knob${padIndex}`;
       midiManager.setValue(paramKey, saturate(midiManager.midi(paramKey) + delta));
     }

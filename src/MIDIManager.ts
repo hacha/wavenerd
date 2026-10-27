@@ -2,6 +2,7 @@ import { EventEmittable } from './utils/EventEmittable';
 import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIManagerStorage';
 import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
 import { setupDDJFLX2PadJog } from './midiDDJFLX2PadJog';
+import { setupDDJFLX2PadToggle } from './midiDDJFLX2PadToggle';
 import { DDJ_FLX2_PADS } from './midiDDJFLX2Pads';
 import { setupDDJFLX2ShiftCFX } from './midiDDJFLX2ShiftCFX';
 import { setupDDJFLX2CueLights } from './midiDDJFLX2CueLights';
@@ -330,9 +331,20 @@ MIDIMAN.defaultValues = {
 MIDIMAN.toggleParams = new Set([
   '/cue/channel_a',
   '/cue/channel_b',
+
+  // knob4-7 are toggles, see `DeckKnobs`
+  '/deck_a/knob4',
+  '/deck_a/knob5',
+  '/deck_a/knob6',
+  '/deck_a/knob7',
+  '/deck_b/knob4',
+  '/deck_b/knob5',
+  '/deck_b/knob6',
+  '/deck_b/knob7',
 ]);
 DDJ_FLX2_PADS.listen(MIDIMAN);
 setupDDJFLX2PadJog(MIDIMAN, DDJ_FLX2_PADS);
+setupDDJFLX2PadToggle(MIDIMAN, DDJ_FLX2_PADS);
 setupDDJFLX2ShiftCFX(MIDIMAN);
 setupDDJFLX2CueLights(MIDIMAN);
 MIDIMAN.initMidi();

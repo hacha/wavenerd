@@ -34,6 +34,7 @@ function padIndexOf(note: number): number | null {
 
 export interface DDJFLX2PadsEvents {
   change: { deck: DDJFLX2Deck };
+  press: { deck: DDJFLX2Deck; padIndex: number; isShift: boolean };
 }
 
 export class DDJFLX2Pads extends EventEmittable<DDJFLX2PadsEvents> {
@@ -52,6 +53,7 @@ export class DDJFLX2Pads extends EventEmittable<DDJFLX2PadsEvents> {
    */
   public press(deck: DDJFLX2Deck, padIndex: number, isShift: boolean): void {
     (isShift ? this.heldWithShift : this.held)[deck].add(padIndex);
+    this.__emit('press', { deck, padIndex, isShift });
     this.__emit('change', { deck });
   }
 
