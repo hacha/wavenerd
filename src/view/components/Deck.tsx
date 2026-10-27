@@ -3,7 +3,7 @@ import { type Analyser } from '../../audio/Analyser';
 import { DeckEditor, type DeckEditorRef } from './DeckEditor';
 import { DeckStatusBar } from './DeckStatusBar';
 import { atom, type PrimitiveAtom } from 'jotai';
-import { type CodeDeck } from '../../CodeDeck';
+import { type CodeDeck, type CueStatus } from '../../CodeDeck';
 import { type DeckSourceMode } from '../../audio/DeckSourceSwitch';
 import { useAtomCallback } from 'jotai/utils';
 import { DeckLog } from './DeckLog';
@@ -18,6 +18,8 @@ import { StrudelDeck } from '../../strudel/StrudelDeck';
 import { StrudelDeckBackground } from './StrudelDeckBackground';
 import { strudelThemeSettings } from '../codemirror/strudelTheme';
 import { type LiveSlot } from '../../live/LiveBridge';
+import { MIDIMAN } from '../../MIDIManager';
+import { knobInit } from '../utils/knobInit';
 
 export const Deck = forwardRef(({
   className,
@@ -33,6 +35,7 @@ export const Deck = forwardRef(({
   gainParamName,
   filterParamName,
   storagePath,
+  knobParamPrefix,
   liveSlot,
 }: {
   deck: CodeDeck;
@@ -41,6 +44,9 @@ export const Deck = forwardRef(({
   gainParamName: string;
   filterParamName: string;
   storagePath: string;
+
+  /** The prefix of the MIDI params of the knobs of the deck, e.g. `/deck_a`. */
+  knobParamPrefix: string;
 
   /** The file of `live/` that this deck follows. Strudel decks only. */
   liveSlot?: LiveSlot;
@@ -68,6 +74,15 @@ export const Deck = forwardRef(({
 
   // -- refs ---------------------------------------------------------------------------------------
   const refEditor = useRef<DeckEditorRef>(null);
+
+  /**
+   * A song was loaded (library, file drop or memory) and its `// @init` is not applied yet.
+   * Applied when the code first goes live, not on load, since the knobs also drive the playing code.
+   */
+  const refInitPending = useRef(false);
+
+  /** The `// @init` of the cued code, while `refInitPending` */
+  const refCuedInit = useRef<Map<string, number> | null>(null);
 
   // -- beforeunload -------------------------------------------------------------------------------
   const handleBeforeUnload = useAtomCallback(useCallback((get, _, event: BeforeUnloadEvent) => {
@@ -102,6 +117,15 @@ export const Deck = forwardRef(({
     jumpToLine(1);
   }, [codeAtom, hasEditAtom, jumpToLine]));
 
+  const armInit = useCallback(() => {
+    refInitPending.current = true;
+  }, []);
+
+  const handleLoadSong = useCallback((code: string) => {
+    armInit();
+    handleLoad(code);
+  }, [armInit, handleLoad]);
+
   /**
    * @param liveHash The hash of the file of `live/` that was pushed to the editor, if the code came from it
    */
@@ -111,6 +135,8 @@ export const Deck = forwardRef(({
     const compileBegin = performance.now();
     await deck.compile(code);
     const compileTime = performance.now() - compileBegin;
+
+    refCuedInit.current = refInitPending.current ? knobInit(code) : null;
 
     storageManager.save(storagePath, code);
     set(hasEditAtom, false);
@@ -156,12 +182,35 @@ export const Deck = forwardRef(({
 
     const type = liveSlot === 'a' ? 'pushA' : 'pushB';
     const handlePush = liveBridge.on(type, ({ code, hash }) => {
+      // `// @init` is for songs loaded by the player, not for `live/`
+      refInitPending.current = false;
       refEditor.current?.replaceCode(code, '← live');
       handleCompile(hash);
     });
 
     return () => liveBridge.off(type, handlePush);
   }, [liveBridge, liveSlot, handleCompile]);
+
+  // -- knob init ----------------------------------------------------------------------------------
+  // the cue went live: set the knobs to the `// @init` of the loaded song
+  useEffect(() => {
+    let prevCueStatus = deck.cueStatus;
+
+    const handleChangeCueStatus = ({ cueStatus }: { cueStatus: CueStatus }) => {
+      const isApplied = cueStatus === 'none' && (prevCueStatus === 'ready' || prevCueStatus === 'applying');
+      prevCueStatus = cueStatus;
+      if (!isApplied || !refInitPending.current) { return; }
+
+      refInitPending.current = false;
+      for (const [paramName, value] of refCuedInit.current ?? []) {
+        MIDIMAN.setValue(`${knobParamPrefix}/${paramName}`, value);
+      }
+      refCuedInit.current = null;
+    };
+    deck.on('changeCueStatus', handleChangeCueStatus);
+
+    return () => deck.off('changeCueStatus', handleChangeCueStatus);
+  }, [deck, knobParamPrefix]);
 
   // -- init ---------------------------------------------------------------------------------------
   useEffect(() => {
@@ -216,6 +265,7 @@ export const Deck = forwardRef(({
         onApply={handleApply}
         onApplyImmediately={handleApplyImmediately}
         onBraceJump={handleBraceJump}
+        onLoadSong={armInit}
         memoryUpdateAtom={memoryUpdateAtom}
         libraryOpeningAtom={libraryOpeningAtom}
       />
@@ -238,7 +288,7 @@ export const Deck = forwardRef(({
       <DeckLibrary
         dir={mode === 'strudel' ? 'strudel' : 'shaders'}
         libraryOpeningAtom={libraryOpeningAtom}
-        onLoad={handleLoad}
+        onLoad={handleLoadSong}
         focusEditor={focusEditor}
       />
       <DeckBraceJumpMap

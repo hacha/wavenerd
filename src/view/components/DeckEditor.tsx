@@ -137,6 +137,7 @@ export const DeckEditor = forwardRef(({
   onApply,
   onApplyImmediately,
   onBraceJump,
+  onLoadSong,
   memoryUpdateAtom,
   libraryOpeningAtom,
   className,
@@ -151,6 +152,8 @@ export const DeckEditor = forwardRef(({
   onApply: () => void;
   onApplyImmediately: () => void;
   onBraceJump?: (index: number) => void;
+  /** A song was loaded from a file or a memory */
+  onLoadSong?: () => void;
   memoryUpdateAtom: PrimitiveAtom<{
     renderKey: number;
     memoryKey: string;
@@ -207,6 +210,7 @@ export const DeckEditor = forwardRef(({
     }
 
     const code = await codeFile.text();
+    onLoadSong?.();
     const to = refCodeMirror.current?.view?.state?.doc.length;
     refCodeMirror.current?.view?.dispatch(
       { changes: [
@@ -227,7 +231,7 @@ export const DeckEditor = forwardRef(({
       memoryKey,
       status: 'loaded',
     }));
-  }, [mode, setMemoryUpdate, storageManager]);
+  }, [mode, setMemoryUpdate, storageManager, onLoadSong]);
 
   const handleSaveMemory = useCallback(async (memoryKey: string) => {
     const head = refCodeMirror.current?.view?.state.selection.main.head ?? 0;
@@ -336,11 +340,12 @@ export const DeckEditor = forwardRef(({
         reader.onload = () => {
           const code = reader.result as string;
           setCode(code);
+          onLoadSong?.();
         };
         reader.readAsText(file);
       }
     },
-    [setCode],
+    [setCode, onLoadSong],
   );
 
   const handleDragOver = useCallback(
