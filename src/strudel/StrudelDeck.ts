@@ -8,7 +8,7 @@ import { createDeckOutputController } from './DeckOutputController';
 import { StrudelScheduler } from './StrudelScheduler';
 import { StrudelLiveFx, type StrudelLiveFxName } from './StrudelLiveFx';
 import { queryPatternOrThrow } from './patternQuery';
-import { STRUDEL_KNOB_NAMES, type StrudelEngine } from './StrudelEngine';
+import { STRUDEL_KNOB_NAMES, STRUDEL_KNOB_PARAMS, type StrudelEngine } from './StrudelEngine';
 import { type StrudelDrawCanvases, type StrudelVisual, collectStrudelVisuals, placeStrudelVisuals } from './StrudelVisuals';
 
 const { getTrigger, ref, silence } = coreModule;
@@ -73,7 +73,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
   private readonly __params = new Map<string, number>();
 
   /**
-   * `knob0` .. `knob7` for Strudel code. Read at query time, so knob changes are heard after the lookahead.
+   * `knob0` .. `knob3` and `tgl0` .. `tgl3` for Strudel code. Read at query time, so knob changes are heard after the lookahead.
    */
   private readonly __knobs: Record<string, Pattern>;
 
@@ -173,7 +173,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
     this.output = audio.createGain();
 
     this.__knobs = Object.fromEntries(STRUDEL_KNOB_NAMES.map((name) => (
-      [name, ref(() => this.__params.get(name) ?? 0.0)]
+      [name, ref(() => this.__params.get(STRUDEL_KNOB_PARAMS[name]) ?? 0.0)]
     )));
 
     const controller = createDeckOutputController(audio, this.output);
@@ -331,7 +331,7 @@ export class StrudelDeck extends EventEmittable<CodeDeckEvents> implements CodeD
   }
 
   /**
-   * Set the value of a knob (`knob0` .. `knob7`), usually from MIDI.
+   * Set the value of a knob of the deck (`knob0` .. `knob7`), usually from MIDI.
    */
   public setParam(name: string, value: number): void {
     this.__params.set(name, value);

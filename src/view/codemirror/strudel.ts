@@ -95,7 +95,7 @@ function createCompletionSource(engine: StrudelEngine): CompletionSource {
 const knobMark = Decoration.mark({ class: 'cm-strudel-knob' });
 
 /**
- * Mark the knobs (`knob0` .. `knob7`) in the visible code. Only variable names, not in strings or comments.
+ * Mark the knobs (`knob0` .. `knob3`, `tgl0` .. `tgl3`) in the visible code. Only variable names, not in strings or comments.
  */
 function knobDecorations(view: EditorView): DecorationSet {
   const ranges: Range<Decoration>[] = [];

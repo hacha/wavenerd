@@ -94,11 +94,14 @@ UI（Deck / DeckStatusBar / DeckEditor）から GLSL デッキと同じように
 
 ### 6. knob（MIDI 連携）
 
-- `knob0`〜`knob7` は、デッキごとの値ストアを読む `ref()` パターンとして提供する（Strudel の `slider` / `midin` と同じ仕組み）。値は 0〜1、未設定なら 0。
+- `knob0`〜`knob3` と `tgl0`〜`tgl3` は、デッキごとの値ストアを読む `ref()` パターンとして提供する（Strudel の `slider` / `midin` と同じ仕組み）。値は 0〜1、未設定なら 0。
   - 例：`s("bd*4").lpf(knob0.range(200, 8000))`
 - evalScope はグローバルなので、評価キューの中で `repl.evaluate()` の直前に、そのデッキの knob を `globalThis` に代入する。キューの外で代入すると、先に並んでいる他デッキの評価と入れ替わるおそれがある。
 - `applyMidiParam` で `/deck_a/knobN` / `/deck_b/knobN` を受けたら、GLSL デッキに加えて同じスロットの `StrudelDeck.setParam()` も呼ぶ。モードに関係なく両方更新するので、起動時の MIDIMAN の値の再生で初期値も入り、モードを切り替えても knob の位置が揃う。
 - 反映遅延は先読み分（約 0.1〜0.2 秒）。
+- デッキの `knob4`〜`knob7` はトグル（0 か 1）。DDJ-FLX2 のパッド 5〜8（SHIFT なし）か画面の下段（ラベル 0〜3）で切り替える（`midiDDJFLX2PadToggle.ts` / `DeckToggle.tsx`）。MIDI learn したノートも押すたびに反転する（`MIDIMAN.toggleParams`）。ジョグで回せるのはパッド 1〜4 の `knob0`〜`knob3` だけ。
+  - Strudel コードではトグルを `tgl0`〜`tgl3` と呼ぶ（`STRUDEL_KNOB_PARAMS`、中身は `knob4`〜`knob7`）。Strudel コードに `knob4`〜`knob7` はない。GLSL は `param_knob4`〜`param_knob7` のまま。
+  - 例：`.mask(tgl1)` で on のときだけ鳴らす、`.mask(tgl0.range(1, 0))` で on のときに抜く。
 - 制限：評価時ではなくクエリ時に `knob0` というグローバルを参照するコード（`.fmap(() => knob0 …)` の中や、別デッキで `register` した関数の中など）は、最後に評価したデッキの knob を読む。まれなので対処しない。必要になったら、ユーザーコードの先頭で knob を分割代入してレキシカルに束縛する方法がある（エラー位置がずれる・`knob0` の再宣言と衝突する、という欠点がある）。
 
 ### 7. UI

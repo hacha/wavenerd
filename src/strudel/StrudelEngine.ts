@@ -11,17 +11,24 @@ import { getStrudelDrawContext, registerStrudelVisuals } from './StrudelVisuals'
 
 const { evalScope, Pattern } = coreModule;
 
-/** Same as the knobs of GLSL decks. */
-export const STRUDEL_KNOB_NAMES = [
-  'knob0',
-  'knob1',
-  'knob2',
-  'knob3',
-  'knob4',
-  'knob5',
-  'knob6',
-  'knob7',
-] as const;
+/**
+ * The names of the knobs in Strudel code → the knobs of the deck, same as GLSL decks.
+ * knob4-7 are toggles (0 or 1), so Strudel code calls them `tgl0` .. `tgl3`, see `DeckKnobs`.
+ */
+export const STRUDEL_KNOB_PARAMS = {
+  knob0: 'knob0',
+  knob1: 'knob1',
+  knob2: 'knob2',
+  knob3: 'knob3',
+  tgl0: 'knob4',
+  tgl1: 'knob5',
+  tgl2: 'knob6',
+  tgl3: 'knob7',
+} as const;
+
+export type StrudelKnobName = keyof typeof STRUDEL_KNOB_PARAMS;
+
+export const STRUDEL_KNOB_NAMES = Object.keys(STRUDEL_KNOB_PARAMS) as StrudelKnobName[];
 
 export interface StrudelCompletionWords {
   /** Names available in Strudel code, including the knobs. */

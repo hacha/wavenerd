@@ -3,9 +3,11 @@ import { useAtomValue } from 'jotai';
 import { useMemo } from 'react';
 import { DeckKnob } from './DeckKnob';
 import { DeckShiftPads } from './DeckShiftPads';
+import { DeckToggle } from './DeckToggle';
+import { DDJ_FLX2_JOG_PAD_COUNT } from '../../midiDDJFLX2PadJog';
 import { deckAGlslAtoms, deckAStrudelAtoms, deckBGlslAtoms, deckBStrudelAtoms } from '../stores/atoms/deck';
 import { useSettings } from '../stores/hooks/useSettings';
-import { referencedKnobs } from '../utils/referencedKnobs';
+import { knobNameInCode, referencedKnobs } from '../utils/referencedKnobs';
 
 const paramNames = [
   'knob0',
@@ -18,15 +20,16 @@ const paramNames = [
   'knob7',
 ];
 
+// the toggles (knob4-7) are numbered from 0 on their own
 const labels = [
   '0',
   '1',
   '2',
   '3',
-  '4',
-  '5',
-  '6',
-  '7',
+  '0',
+  '1',
+  '2',
+  '3',
 ];
 
 const codeAtoms = {
@@ -45,20 +48,24 @@ export function DeckKnobs({ slot, className }: {
   const code = useAtomValue(codeAtoms[slot][mode]);
   const knobsInCode = useMemo(() => referencedKnobs(mode, code), [mode, code]);
 
-  // 2 rows of 4, same as the performance pads of DDJ-FLX2 (pad 1-4 above, pad 5-8 below)
+  // 2 rows of 4, same as the performance pads of DDJ-FLX2 (pad 1-4 above, pad 5-8 below).
+  // The knobs below are toggles, like the pads
   return (
-    <div className={clsx('flex justify-center items-center gap-4', className)}>
+    <div className={clsx('flex justify-center items-center gap-10', className)}>
       <div className="grid grid-cols-[repeat(4,auto)] gap-x-1 gap-y-0.5">
-        {paramNames.map((paramName, index) => (
-          <DeckKnob
-            key={paramName}
-            paramPrefix={paramPrefix}
-            label={labels[index]}
-            paramName={paramName}
-            stalker={`param_${paramName}`}
-            isReferenced={knobsInCode.has(paramName)}
-          />
-        ))}
+        {paramNames.map((paramName, index) => {
+          const DeckControl = index < DDJ_FLX2_JOG_PAD_COUNT ? DeckKnob : DeckToggle;
+          return (
+            <DeckControl
+              key={paramName}
+              paramPrefix={paramPrefix}
+              label={labels[index]}
+              paramName={paramName}
+              stalker={knobNameInCode(mode, paramName)}
+              isReferenced={knobsInCode.has(paramName)}
+            />
+          );
+        })}
       </div>
       <DeckShiftPads slot={slot} />
     </div>
