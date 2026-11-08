@@ -3,6 +3,7 @@ import { migrateMIDIManagerStorage, MIDI_VERSION_LATEST } from './migrateMIDIMan
 import { MIDI_PRESETS, type MidiPreset } from './midiPresets';
 import { setupDDJFLX2PadJog } from './midiDDJFLX2PadJog';
 import { setupDDJFLX2PadToggle } from './midiDDJFLX2PadToggle';
+import { setupDDJFLX2PadToggleLights } from './midiDDJFLX2PadToggleLights';
 import { DDJ_FLX2_PADS } from './midiDDJFLX2Pads';
 import { setupDDJFLX2ShiftCFX } from './midiDDJFLX2ShiftCFX';
 import { setupDDJFLX2CueLights } from './midiDDJFLX2CueLights';
@@ -345,6 +346,7 @@ MIDIMAN.toggleParams = new Set([
 DDJ_FLX2_PADS.listen(MIDIMAN);
 setupDDJFLX2PadJog(MIDIMAN, DDJ_FLX2_PADS);
 setupDDJFLX2PadToggle(MIDIMAN, DDJ_FLX2_PADS);
+setupDDJFLX2PadToggleLights(MIDIMAN, DDJ_FLX2_PADS);
 setupDDJFLX2ShiftCFX(MIDIMAN);
 setupDDJFLX2CueLights(MIDIMAN);
 MIDIMAN.initMidi();

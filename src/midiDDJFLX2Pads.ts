@@ -21,10 +21,10 @@ const PAD_CHANNELS: { [ channel: number ]: { deck: DDJFLX2Deck; isShift: boolean
 /**
  * The note of pad 1 in each pad mode. Pad 2-8 follow it.
  */
-const PAD_NOTE_BASES = [0, 16, 96, 48];
+export const DDJ_FLX2_PAD_NOTE_BASES = [0, 16, 96, 48];
 
 function padIndexOf(note: number): number | null {
-  for (const base of PAD_NOTE_BASES) {
+  for (const base of DDJ_FLX2_PAD_NOTE_BASES) {
     if (base <= note && note < base + 8) {
       return note - base;
     }
