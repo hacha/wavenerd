@@ -11,7 +11,7 @@ function DeckLogInside({ logsAtom }: Props) {
   const font = useSettings('editorFont');
 
   return (
-    <div className="absolute right-0 bottom-6 flex flex-col-reverse items-end gap-1 p-1">
+    <div className="absolute right-0 bottom-0 flex flex-col-reverse items-end gap-1 p-1">
       {logs.map(([id, text]) => (
         <div
           key={id}

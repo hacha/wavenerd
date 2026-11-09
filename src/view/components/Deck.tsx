@@ -20,6 +20,51 @@ import { strudelThemeSettings } from '../codemirror/strudelTheme';
 import { type LiveSlot } from '../../live/LiveBridge';
 import { MIDIMAN } from '../../MIDIManager';
 import { knobInit } from '../utils/knobInit';
+import { LiveChatPanel } from './LiveChatPanel';
+import { useLiveChatState } from '../stores/hooks/useLiveChatState';
+
+// == chat layout ==================================================================================
+const CHAT_RATIO_MIN = 0.15;
+const CHAT_RATIO_MAX = 0.85;
+
+/** Height of the status bar, px. */
+const STATUS_BAR_HEIGHT = 24;
+
+function loadStored<T>(key: string, fallback: T): T {
+  try {
+    const value = localStorage.getItem(key);
+    return value == null ? fallback : JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function store(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // not remembered
+  }
+}
+
+/**
+ * Whether the chat panel of a deck is open, and its share of the height above the status bar.
+ * Remembered per deck in this browser.
+ */
+function useChatLayout(slot: LiveSlot | undefined) {
+  const key = `wavenerd-live-chat-${slot ?? 'none'}`;
+  const [layout, setLayout] = useState(() => loadStored(key, { open: false, ratio: 0.35 }));
+
+  const update = useCallback((patch: Partial<typeof layout>) => {
+    setLayout((prev) => {
+      const next = { ...prev, ...patch };
+      store(key, next);
+      return next;
+    });
+  }, [key]);
+
+  return [layout, update] as const;
+}
 
 export const Deck = forwardRef(({
   className,
@@ -59,7 +104,7 @@ export const Deck = forwardRef(({
   analyser: Analyser;
   className?: string;
 }, ref: React.Ref<{ focusEditor: (highlight: boolean) => void }>) => {
-  const { storageManager, liveBridge } = useContext(StuffContext)!;
+  const { storageManager, liveBridge, liveChat } = useContext(StuffContext)!;
 
   // -- atoms and state ----------------------------------------------------------------------------
   const libraryOpeningAtom = useMemo(() => atom(false), []);
@@ -232,48 +277,105 @@ export const Deck = forwardRef(({
     };
   }, [storageManager, storagePath, handleLoad, handleApplyImmediately]);
 
+  // -- chat -------------------------------------------------------------------------------------
+  // only the Strudel decks follow `live/`, so only they have a chat
+  const hasChat = liveChat != null && liveSlot != null;
+  const chatState = useLiveChatState(liveChat, liveSlot);
+  const [chatLayout, updateChatLayout] = useChatLayout(liveSlot);
+  const chatOpen = hasChat && chatLayout.open;
+  const refRoot = useRef<HTMLDivElement>(null);
+
+  const handleToggleChat = useCallback(() => {
+    updateChatLayout({ open: !chatLayout.open });
+  }, [chatLayout.open, updateChatLayout]);
+
+  const handleChatResizeStart = useCallback((event: React.PointerEvent) => {
+    const root = refRoot.current;
+    if (root == null) { return; }
+    event.preventDefault();
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const rect = root.getBoundingClientRect();
+      const height = rect.height - STATUS_BAR_HEIGHT;
+      const ratio = 1.0 - (moveEvent.clientY - rect.top) / height;
+      updateChatLayout({ ratio: Math.min(Math.max(ratio, CHAT_RATIO_MIN), CHAT_RATIO_MAX) });
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  }, [updateChatLayout]);
+
+  // the code takes the height above the status bar, minus the chat
+  const chatRatio = chatOpen ? chatLayout.ratio : 0;
+  const codeStyle = { height: `calc((100% - ${STATUS_BAR_HEIGHT}px) * ${1.0 - chatRatio})` };
+
   // -- imperative handle --------------------------------------------------------------------------
   useImperativeHandle(ref, () => ({ focusEditor }), [focusEditor]);
 
   // -- render -------------------------------------------------------------------------------------
   return (
     <div
+      ref={refRoot}
       className={clsx('relative bg-code-background', className)}
       // the background of the Strudel REPL
       style={deck instanceof StrudelDeck ? { backgroundColor: strudelThemeSettings.background } : undefined}
     >
-      <DeckVisualizer
-        className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none"
-        analyser={analyser}
-      />
-      {deck instanceof StrudelDeck && (
-        <StrudelDeckBackground
-          className="absolute left-0 top-0 w-full h-[calc(100%-24px)] pointer-events-none opacity-80"
+      {/* the code, above the chat and the status bar */}
+      <div className="absolute left-0 top-0 w-full" style={codeStyle}>
+        <DeckVisualizer
+          className="absolute inset-0 pointer-events-none"
+          analyser={analyser}
+        />
+        {deck instanceof StrudelDeck && (
+          <StrudelDeckBackground
+            className="absolute inset-0 pointer-events-none opacity-80"
+            deck={deck}
+          />
+        )}
+        <DeckEditor
+          ref={refEditor}
           deck={deck}
+          mode={mode}
+          className="absolute inset-0"
+          codeAtom={codeAtom}
+          logsAtom={logsAtom}
+          errorAtom={errorAtom}
+          hasEditAtom={hasEditAtom}
+          onCompile={handleCompileByPlayer}
+          onApply={handleApply}
+          onApplyImmediately={handleApplyImmediately}
+          onBraceJump={handleBraceJump}
+          onLoadSong={armInit}
+          memoryUpdateAtom={memoryUpdateAtom}
+          libraryOpeningAtom={libraryOpeningAtom}
+        />
+        <DeckLog logsAtom={logsAtom} />
+        <DeckBraceJumpMap
+          ref={refBraceJumpMap}
+          className="absolute inset-0"
+          codeAtom={codeAtom}
+        />
+      </div>
+      {chatOpen && (
+        <LiveChatPanel
+          className="absolute left-0 w-full"
+          style={{
+            bottom: STATUS_BAR_HEIGHT,
+            height: `calc((100% - ${STATUS_BAR_HEIGHT}px) * ${chatRatio})`,
+          }}
+          liveChat={liveChat!}
+          slot={liveSlot!}
+          onResizeStart={handleChatResizeStart}
         />
       )}
-      <DeckEditor
-        ref={refEditor}
-        deck={deck}
-        mode={mode}
-        className="absolute left-0 top-0 w-full h-[calc(100%-24px)]"
-        codeAtom={codeAtom}
-        logsAtom={logsAtom}
-        errorAtom={errorAtom}
-        hasEditAtom={hasEditAtom}
-        onCompile={handleCompileByPlayer}
-        onApply={handleApply}
-        onApplyImmediately={handleApplyImmediately}
-        onBraceJump={handleBraceJump}
-        onLoadSong={armInit}
-        memoryUpdateAtom={memoryUpdateAtom}
-        libraryOpeningAtom={libraryOpeningAtom}
-      />
-      <DeckLog logsAtom={logsAtom} />
       <DeckStatusBar
         className="absolute left-0 bottom-0 w-full h-6"
         mode={mode}
         onToggleMode={onToggleMode}
+        chat={hasChat ? { open: chatOpen, busy: chatState?.busy ?? false, onToggle: handleToggleChat } : undefined}
         errorAtom={errorAtom}
         cueStatusAtom={cueStatusAtom}
         hasEditAtom={hasEditAtom}
@@ -290,11 +392,6 @@ export const Deck = forwardRef(({
         libraryOpeningAtom={libraryOpeningAtom}
         onLoad={handleLoadSong}
         focusEditor={focusEditor}
-      />
-      <DeckBraceJumpMap
-        ref={refBraceJumpMap}
-        className="absolute left-0 top-0 w-full h-[calc(100%-24px)]"
-        codeAtom={codeAtom}
       />
       <DeckMemoryUpdateBalloon memoryUpdateAtom={memoryUpdateAtom} />
       {focusHighlightKey > 0 && (

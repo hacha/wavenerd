@@ -67,3 +67,44 @@ export interface LiveLevelsEvent {
 export interface LiveSoundsEvent {
   text: string;
 }
+
+/**
+ * A line of the chat with the coding agent (`vite/liveChat.ts`).
+ *
+ * - `user`: what the performer wrote
+ * - `assistant`: the text of the agent
+ * - `tool`: a tool the agent used, e.g. `Edit live/B.strudel.js`
+ * - `error`: the run failed, or a tool failed
+ * - `info`: stopped, new conversation, and so on
+ */
+export interface LiveChatEntry {
+  id: number;
+  role: 'user' | 'assistant' | 'tool' | 'error' | 'info';
+  text: string;
+}
+
+/** `wavenerd-live:chat`, server → app: the whole chat of a deck, whenever it changes or the app asks. */
+export interface LiveChatStateEvent {
+  slot: LiveSlot;
+
+  /** `null` if the chat can be used. */
+  disabledReason: string | null;
+
+  /** The agent is running. Another message is refused until it ends. */
+  busy: boolean;
+
+  entries: LiveChatEntry[];
+}
+
+/** `wavenerd-live:chat-send`, app → server. */
+export interface LiveChatSendEvent {
+  slot: LiveSlot;
+  text: string;
+}
+
+/** `wavenerd-live:chat-cancel` (stop the agent) and `wavenerd-live:chat-reset` (start a new conversation), app → server. */
+export interface LiveChatSlotEvent {
+  slot: LiveSlot;
+}
+
+// `wavenerd-live:chat-hello`, app → server: the app wants the state of both chats. Carries nothing.

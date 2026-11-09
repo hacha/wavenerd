@@ -28,6 +28,7 @@ import { LoudnessMeterNode } from './audio/LoudnessMeterNode';
 import { StrudelEngine } from './strudel/StrudelEngine';
 import { StrudelDeck } from './strudel/StrudelDeck';
 import { type LiveBridge } from './live/LiveBridge';
+import { type LiveChat } from './live/LiveChat';
 import { DDJ_FLX2_PADS } from './midiDDJFLX2Pads';
 import { setupDDJFLX2PadFx } from './midiDDJFLX2PadFx';
 import './index.css';
@@ -406,8 +407,11 @@ if (strudelOfflineSwitch != null) {
 // == live bridge ==================================================================================
 // the files of `live/` for coding agents. needs the dev server (`vite/liveBridge.ts`)
 let liveBridge: LiveBridge | null = null;
+let liveChat: LiveChat | null = null;
 if (import.meta.hot) {
   const { LiveBridge } = await import('./live/LiveBridge');
+  const { LiveChat } = await import('./live/LiveChat');
+  liveChat = new LiveChat(import.meta.hot);
   liveBridge = new LiveBridge({
     hot: import.meta.hot,
     decks: { a: strudelDeckA, b: strudelDeckB },
@@ -434,6 +438,7 @@ root.render(
       fullscreenManager,
       frameEmitter,
       liveBridge,
+      liveChat,
     }}
   />,
 );
