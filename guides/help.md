@@ -66,9 +66,9 @@ s("bd*4, hh*8").lpf(knob0.range(200, 8000))
 ```
 
 - The sounds are the same as on the Strudel REPL (synths, drum machines, soundfonts, samples; they are fetched from the internet). Samples and wavetables you added to Wavenerd can be played too: `s("kick")`, `s("wt_saw")`.
-- Compile and apply work as above (`Ctrl-S`, `Ctrl-R`, `Shift-Ctrl-R`). A cued pattern starts on the next bar.
+- Compile and apply work as above (see [Keyboard shortcuts](#keyboard-shortcuts)). A cued pattern starts on the next bar.
 - The tempo follows the deck: 1 cycle = 1 bar (4 beats), at the BPM of the deck. Play, pause, rewind and BPM are shared with the GLSL side. `setcps` / `setcpm` do nothing, so use `.fast()` / `.slow()` instead.
-- `Ctrl-P` opens the Strudel sketches you put in the asset list (drop files or use the folder icon, same as shaders).
+- `⌘P` / `Ctrl+P` opens the Strudel sketches you put in the asset list (drop files or use the folder icon, same as shaders).
 - The editor completes the functions and the sound names, and highlights the elements being played.
 - Visuals: inline `._pianoroll()`, `._punchcard()`, `._spiral()`, `._scope()`, `._spectrum()`, `._pitchwheel()`, and behind the code `.pianoroll()`, `.punchcard()`, `.spiral()`, `.scope()`, `.fscope()`, `.spectrum()`, `.pitchwheel()`. `.draw()` and `getDrawContext()` also work.
 - Not supported: `.animate()`, `.onPaint()`, `slider()`, `.dough()`, and `setcps` / `setcpm`.
@@ -127,18 +127,20 @@ The Pioneer DDJ-FLX2 is mapped automatically the first time it is detected (your
 
 All shortcuts in CodeMirror's [defaultKeymap](https://codemirror.net/docs/ref/#commands.defaultKeymap) are available. In addition, the following Wavenerd-specific shortcuts are available:
 
-- `Ctrl-J`: Focus deck A
-- `Ctrl-K`: Focus deck B
-- `Ctrl-P`: Open the library (shaders on a GLSL deck, Strudel sketches on a Strudel deck)
-- `Ctrl-S`: Compile the code
-- `Ctrl-R`: Apply the code
-- `Shift-Ctrl-R`: Apply the code immediately
-- `Ctrl-,`: Jump to the previous bracket
-- `Ctrl-.`: Jump to the next bracket
-- `Shift-Ctrl-,`: Extend / shrink selection to the previous sibling bracket
-- `Shift-Ctrl-.`: Extend / shrink selection to the next sibling bracket
-- `Ctrl-[0-9]`: Load from memory patterns
-- `Shift-Ctrl-[0-9]`: Save to memory patterns
+| Action | macOS | Windows / Linux |
+|---|---|---|
+| Focus deck A | `⌘J` | `Ctrl+J` |
+| Focus deck B | `⌘K` | `Ctrl+K` |
+| Open the library (shaders on a GLSL deck, Strudel sketches on a Strudel deck) | `⌘P` | `Ctrl+P` |
+| Compile the code | `⌘S` | `Ctrl+S` |
+| Apply the code | `⌘R` | `Ctrl+R` |
+| Apply the code immediately | `⇧⌘R` | `Shift+Ctrl+R` |
+| Jump to the previous bracket | `⌘,` | `Ctrl+,` |
+| Jump to the next bracket | `⌘.` | `Ctrl+.` |
+| Extend / shrink selection to the previous sibling bracket | `⇧⌘,` | `Shift+Ctrl+,` |
+| Extend / shrink selection to the next sibling bracket | `⇧⌘.` | `Shift+Ctrl+.` |
+| Load from memory patterns | `⌘0 – ⌘9` | `Ctrl+0 – Ctrl+9` |
+| Save to memory patterns | `⇧⌘0 – ⇧⌘9` | `Shift+Ctrl+0 – Shift+Ctrl+9` |
 
 ## How to use params
 
@@ -180,7 +182,7 @@ Simply `texture(image_****, uv)` to use.
 
 When Wavenerd is run with the dev server (`pnpm dev`), Claude Code can write the code of the Strudel decks while you play. It does not work on the published site.
 
-- Claude Code writes `live/A.strudel.js` / `live/B.strudel.js`. The code is put in the editor of the deck and cued. You apply it yourself (`Ctrl-R` or `Shift-Ctrl-R`). Code you cue by hand is written back to the file.
+- Claude Code writes `live/A.strudel.js` / `live/B.strudel.js`. The code is put in the editor of the deck and cued. You apply it yourself (`⌘R` / `Ctrl+R`, or `⇧⌘R` / `Shift+Ctrl+R` to apply immediately). Code you cue by hand is written back to the file.
 - `live/status.json` tells the state of the app, `live/sounds.txt` lists the sound names, and `live/levels.json` has the loudness of each deck.
 
 Details are in [doc/strudel-integration.md](https://github.com/hacha/wavenerd/blob/dev/doc/strudel-integration.md) (in Japanese).
