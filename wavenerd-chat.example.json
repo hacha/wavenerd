@@ -1,0 +1,6 @@
+{
+  "model": "sonnet",
+  "effort": "low",
+  "systemPrompt": "The performer is on stage. Keep replies to one or two sentences.",
+  "systemPromptFiles": []
+}

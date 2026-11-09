@@ -323,6 +323,9 @@ Strudel から GLSL に戻すとき：デッキには無音が先行して書き
 | 先頭に日本語と絵文字のコメント行を置いてコンパイル | 位置はずれない |
 
 未確認：タブが表にある状態での見え方（音とのずれの体感）。
+- 設定ファイル（2026-11-09）：ファイルなしでローダーは既定を返した。不正な effort、存在しないプロンプトファイル、壊れた JSON はエラーを返した。
+- ファイルを置いてブラウザからチャットを実行すると、引数に `--model haiku --effort low` が入っていた（`ps` で確認）。
+- 合成したプロンプトでヘッドレス実行すると、足した指示に新しい会話でも `--resume` でも従った。
 
 ### 制限
 
@@ -584,7 +587,7 @@ note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
 ### 安全策
 
 - 環境変数 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` と `CLAUDE*`（`CLAUDE_CONFIG_DIR` 以外）を外して起動する。
-- init イベントの `apiKeySource` が `none`（サブスク）でなければ止める。`WAVENERD_CHAT_ALLOW_API_KEY=1` で許可。
+- init イベントの `apiKeySource` が `none`（サブスク）でなければ止める。設定ファイルの `allowApiKey: true` で許可。
 - `--tools Read,Glob,Grep,Edit,Write,Skill`。`--permission-mode dontAsk`、`--strict-mcp-config`。
 - 書き換えられるファイルはデッキごとに 1 つだけ。デッキ A のチャットは `--allowedTools` が `Edit(live/A.strudel.js)` と `Write(live/A.strudel.js)`、B はその逆。Read / Glob / Grep は全体に使えるので、もう一方のデッキのファイルを読んでキーとテンポを合わせられる。システムプロンプトにも同じことを書いている。プロンプトだけでなく権限で強制される。
 - dev server が localhost 以外で待ち受けている（`--host`）ときは使えない。
@@ -592,8 +595,26 @@ note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
 
 ### 設定
 
-- `WAVENERD_CHAT_MODEL`：`--model` に渡す。
-- `WAVENERD_CHAT_CLAUDE`：コマンドのパス。
+- リポジトリ直下の `wavenerd-chat.json`（git 管理外、個人用）。雛形は `wavenerd-chat.example.json`。メッセージごとに読み直すので、dev server を再起動せずに反映される。置き場所を `live/` にしないのは、`live/` が消して作り直せる生成物の作業場だから。
+- 全項目が省略可。ファイルがなければ既定（`~/.claude/settings.json` など Claude Code 自身の設定）。
+
+```json
+{
+  "model": "sonnet",
+  "effort": "low",
+  "systemPrompt": "The performer is on stage. Keep replies to one or two sentences.",
+  "systemPromptFiles": []
+}
+```
+
+- `model`：`--model` に渡す。
+- `effort`：`--effort` に渡す。`low` / `medium` / `high` / `xhigh` / `max`。
+- `systemPrompt`：システムプロンプトに足す文章。
+- `systemPromptFiles`：足すファイル（リポジトリ直下からの相対パス、または絶対パス）。各ファイルは `# <パス>` の見出しを付けて足す。
+- `command`：コマンド。既定は `claude`。
+- `allowApiKey`：API キーでの実行を許可する。既定は `false`。
+- `--append-system-prompt` の順序：`systemPrompt`、ファイル、最後に `# This chat` と wavenerd 自身のデッキ用ルール。自分のファイルだけを書き換える、というルールが後ろにあるので、ユーザーのプロンプトより優先される。
+- ファイルが不正（JSON が壊れている、型が違う、未知の effort、読めないプロンプトファイル）だとエージェントは起動せず、チャットのログにエラーを出す。例：`wavenerd-chat.json: "effort" must be one of low, medium, high, xhigh, max`。
 - 別のエージェント（Codex など）は、`claudeCommand` と同じ形の関数と出力の解釈を足す。
 
 ### UI

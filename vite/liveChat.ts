@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'child_process';
 import { readFileSync, renameSync, writeFileSync } from 'fs';
 import { relative, resolve } from 'path';
 import { type ViteDevServer } from 'vite';
+import { type LiveChatConfig, loadLiveChatConfig } from './liveChatConfig';
 import { type LiveChatEntry, type LiveChatSendEvent, type LiveChatSlotEvent, type LiveChatStateEvent, type LiveSlot } from '../src/live/liveProtocol';
 
 /**
@@ -13,6 +14,7 @@ import { type LiveChatEntry, type LiveChatSendEvent, type LiveChatSlotEvent, typ
  * - One run per message. The conversation goes on with `--resume`; its id is kept in `live/chat-<slot>.json`.
  * - One run at a time per deck.
  * - Only from localhost: the agent edits files of this machine.
+ * - Model, effort and more system prompt: `wavenerd-chat.json` (`./liveChatConfig.ts`).
  */
 
 const SLOTS: LiveSlot[] = ['a', 'b'];
@@ -55,7 +57,15 @@ function agentEnv(): NodeJS.ProcessEnv {
  * The command of a run. The prompt goes to stdin, so it is never read as an option.
  * Another agent (e.g. Codex) would be another function like this, plus its own parsing of the output.
  */
-function claudeCommand(slot: LiveSlot, sessionId: string | null): { command: string; args: string[] } {
+function claudeCommand(
+  slot: LiveSlot,
+  sessionId: string | null,
+  config: LiveChatConfig,
+  extraPrompt: string,
+): { command: string; args: string[] } {
+  // the rules of the chat come last, so they win over the prompt of the user
+  const prompt = extraPrompt === '' ? systemPrompt(slot) : `${extraPrompt}\n\n# This chat\n\n${systemPrompt(slot)}`;
+
   const args = [
     '-p',
     '--output-format', 'stream-json',
@@ -64,16 +74,18 @@ function claudeCommand(slot: LiveSlot, sessionId: string | null): { command: str
     '--permission-mode', 'dontAsk',
     '--tools', TOOLS.join(','),
     '--allowedTools', allowedTools(slot).join(','),
-    '--append-system-prompt', systemPrompt(slot),
+    '--append-system-prompt', prompt,
   ];
-  const model = process.env.WAVENERD_CHAT_MODEL;
-  if (model) {
-    args.push('--model', model);
+  if (config.model) {
+    args.push('--model', config.model);
+  }
+  if (config.effort) {
+    args.push('--effort', config.effort);
   }
   if (sessionId != null) {
     args.push('--resume', sessionId);
   }
-  return { command: process.env.WAVENERD_CHAT_CLAUDE ?? 'claude', args };
+  return { command: config.command ?? 'claude', args };
 }
 
 function isLocalHost(host: string | boolean | undefined): boolean {
@@ -154,7 +166,14 @@ export function setupLiveChat(devServer: ViteDevServer, liveDir: string): void {
     };
 
     const run = (prompt: string) => {
-      const { command, args } = claudeCommand(slot, saved.sessionId);
+      const loaded = loadLiveChatConfig(root);
+      if (!loaded.ok) {
+        add('error', loaded.error);
+        return;
+      }
+      const { config, extraPrompt } = loaded;
+
+      const { command, args } = claudeCommand(slot, saved.sessionId, config, extraPrompt);
       const proc = spawn(command, args, { cwd: root, env: agentEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
       child = proc;
       sendState();
@@ -181,9 +200,9 @@ export function setupLiveChat(devServer: ViteDevServer, liveDir: string): void {
 
         if (event.type === 'system' && event.subtype === 'init') {
           // `none`: logged in with a subscription. otherwise an API key would be billed
-          if (event.apiKeySource !== 'none' && process.env.WAVENERD_CHAT_ALLOW_API_KEY !== '1') {
+          if (event.apiKeySource !== 'none' && config.allowApiKey !== true) {
             cancel();
-            add('error', `Stopped: the agent was going to use an API key (${event.apiKeySource}), not the subscription. Log in with \`claude /login\`, or set WAVENERD_CHAT_ALLOW_API_KEY=1.`);
+            add('error', `Stopped: the agent was going to use an API key (${event.apiKeySource}), not the subscription. Log in with \`claude /login\`, or set "allowApiKey": true in wavenerd-chat.json.`);
           }
         } else if (event.type === 'assistant') {
           for (const block of event.message?.content ?? []) {
