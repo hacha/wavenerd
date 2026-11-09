@@ -8,6 +8,7 @@ import { type FrameEmitter } from '../FrameEmitter';
 import { type StorageManager } from '../StorageManager';
 import { type StrudelDeck } from '../strudel/StrudelDeck';
 import { type LiveBridge } from '../live/LiveBridge';
+import { type LiveChat } from '../live/LiveChat';
 
 export interface Stuff {
   deckA: WavenerdDeck;
@@ -24,6 +25,9 @@ export interface Stuff {
 
   /** Dev server only. */
   liveBridge: LiveBridge | null;
+
+  /** Dev server only. */
+  liveChat: LiveChat | null;
 }
 
 export const StuffContext = createContext<Stuff | null>(null);

@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { type Plugin, type ViteDevServer } from 'vite';
+import { setupLiveChat } from './liveChat';
 import { type LiveCompiledEvent, type LiveLevelsEvent, type LivePushEvent, type LiveSlot, type LiveSoundsEvent, type LiveStateEvent } from '../src/live/liveProtocol';
 
 /**
@@ -12,6 +13,7 @@ import { type LiveCompiledEvent, type LiveLevelsEvent, type LivePushEvent, type 
  * - `live/status.json`: the state of the app and the result of the last compile of each deck.
  * - `live/sounds.txt`: the sounds that Strudel code can play.
  * - `live/levels.json`: the loudness of each deck, every second while the app is open.
+ * - `live/chat.json`: the chat panel of the app, which runs the agent on this machine (`./liveChat.ts`).
  *
  * Messages are the `wavenerd-live:*` custom events of the HMR channel (`src/live/liveProtocol.ts`).
  */
@@ -269,6 +271,8 @@ export function liveBridge(): Plugin {
       hot.on('wavenerd-live:sounds', (event: LiveSoundsEvent) => {
         writeAtomically(resolve(dir, 'sounds.txt'), event.text);
       });
+
+      setupLiveChat(devServer, dir);
     },
   };
 }

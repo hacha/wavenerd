@@ -89,7 +89,7 @@ DCRemoval, HardClip, LookaheadLimiter, FirstOrderFilter, TimeDomainDataProbe, Ti
 
 ### Live coding bridge (dev server only)
 
-`vite/liveBridge.ts` + `src/live/LiveBridge.ts`: `live/A.strudel.js` / `live/B.strudel.js` are cued to the Strudel decks, `live/status.json` and `live/sounds.txt` describe the app. To write code for the decks while the user plays, use the `strudel-live` skill. Details in `doc/strudel-integration.md`.
+`vite/liveBridge.ts` + `src/live/LiveBridge.ts`: `live/A.strudel.js` / `live/B.strudel.js` are cued to the Strudel decks, `live/status.json` and `live/sounds.txt` describe the app. To write code for the decks while the user plays, use the `strudel-live` skill. Details in `doc/strudel-integration.md`. Each Strudel deck has a chat panel (toggled from its status bar) that runs the local `claude` CLI headless and edits only that deck's file (`vite/liveChat.ts`, `src/live/LiveChat.ts`). Its model, effort and an extra system prompt come from `wavenerd-chat.json` (template `wavenerd-chat.example.json`).
 
 ## Icons
 

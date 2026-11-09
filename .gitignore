@@ -3,3 +3,4 @@
 *.log
 /.pnpm-store/
 /live/
+/wavenerd-chat.json

@@ -323,6 +323,9 @@ Strudel から GLSL に戻すとき：デッキには無音が先行して書き
 | 先頭に日本語と絵文字のコメント行を置いてコンパイル | 位置はずれない |
 
 未確認：タブが表にある状態での見え方（音とのずれの体感）。
+- 設定ファイル（2026-11-09）：ファイルなしでローダーは既定を返した。不正な effort、存在しないプロンプトファイル、壊れた JSON はエラーを返した。
+- ファイルを置いてブラウザからチャットを実行すると、引数に `--model haiku --effort low` が入っていた（`ps` で確認）。
+- 合成したプロンプトでヘッドレス実行すると、足した指示に新しい会話でも `--resume` でも従った。
 
 ### 制限
 
@@ -565,6 +568,79 @@ note("c2 eb2 g2").s("wt_saw").wt(sine.slow(4)).unison(4).detune(0.2)
 
 - dev server が必要（本番ビルドには入らない）。タブは 1 つ、dev server も 1 つで使う。同じリポジトリで dev server を 2 つ動かすと、両方が `live/` を読み書きし、`status.json` は後から書いた方になる（2026-10-01 に実際に起きた。一時ファイル名が共通だったため rename が失敗し、片方のサーバーが例外で落ちた。一時ファイル名をプロセスごとに分け、プラグインの書き込みは失敗しても例外を投げないようにした）。
 - Claude の応答には数秒〜数十秒かかる。片方のデッキを鳴らしながら、もう片方に書かせてクロスフェーダーでつなぐ使い方を想定している。
+
+## ブラウザから Claude Code と話す（2026-11-09）
+
+### 目的
+
+- 演奏中にブラウザの画面から AI にコードを書かせる。
+- API ではなく、このマシンでログイン済みの Claude Code（サブスク）を使う。dev server でだけ動く。
+- デッキごとに別の会話にする。デッキ A のチャットは A のファイルだけを書き換える。
+
+### 仕組み
+
+- `vite/liveChat.ts`（サーバー）、`src/live/LiveChat.ts`（アプリ側）、`src/view/components/LiveChatPanel.tsx`（UI）、`src/view/components/Deck.tsx`（配置と開閉）。
+- メッセージごとに dev server が `claude -p --output-format stream-json --verbose` を起動する。プロンプトは stdin で渡す（オプションと誤解されないため）。
+- `--resume` で会話を続ける。session id と表示中のログはデッキごとに `live/chat-a.json` / `live/chat-b.json` に保存する（最大 200 行）。
+- HMR のカスタムイベントは `slot`（`a` / `b`）を持つ：`wavenerd-live:chat`（server → app、1 つのデッキの状態）、`chat-send` {slot, text}、`chat-cancel` / `chat-reset` {slot}（app → server）。`chat-hello`（app → server）は両方のデッキの状態を求める。型は `src/live/liveProtocol.ts`。
+
+### 安全策
+
+- 環境変数 `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` と `CLAUDE*`（`CLAUDE_CONFIG_DIR` 以外）を外して起動する。
+- init イベントの `apiKeySource` が `none`（サブスク）でなければ止める。設定ファイルの `allowApiKey: true` で許可。
+- `--tools Read,Glob,Grep,Edit,Write,Skill`。`--permission-mode dontAsk`、`--strict-mcp-config`。
+- 書き換えられるファイルはデッキごとに 1 つだけ。デッキ A のチャットは `--allowedTools` が `Edit(live/A.strudel.js)` と `Write(live/A.strudel.js)`、B はその逆。Read / Glob / Grep は全体に使えるので、もう一方のデッキのファイルを読んでキーとテンポを合わせられる。システムプロンプトにも同じことを書いている。プロンプトだけでなく権限で強制される。
+- dev server が localhost 以外で待ち受けている（`--host`）ときは使えない。
+- 1 つのデッキでは一度に 1 つだけ実行する。A と B の実行は同時にできる。停止ボタンで kill。
+
+### 設定
+
+- リポジトリ直下の `wavenerd-chat.json`（git 管理外、個人用）。雛形は `wavenerd-chat.example.json`。メッセージごとに読み直すので、dev server を再起動せずに反映される。置き場所を `live/` にしないのは、`live/` が消して作り直せる生成物の作業場だから。
+- 全項目が省略可。ファイルがなければ既定（`~/.claude/settings.json` など Claude Code 自身の設定）。
+
+```json
+{
+  "model": "sonnet",
+  "effort": "low",
+  "systemPrompt": "The performer is on stage. Keep replies to one or two sentences.",
+  "systemPromptFiles": []
+}
+```
+
+- `model`：`--model` に渡す。
+- `effort`：`--effort` に渡す。`low` / `medium` / `high` / `xhigh` / `max`。
+- `systemPrompt`：システムプロンプトに足す文章。
+- `systemPromptFiles`：足すファイル（リポジトリ直下からの相対パス、または絶対パス）。各ファイルは `# <パス>` の見出しを付けて足す。
+- `command`：コマンド。既定は `claude`。
+- `allowApiKey`：API キーでの実行を許可する。既定は `false`。
+- `--append-system-prompt` の順序：`systemPrompt`、ファイル、最後に `# This chat` と wavenerd 自身のデッキ用ルール。自分のファイルだけを書き換える、というルールが後ろにあるので、ユーザーのプロンプトより優先される。
+- ファイルが不正（JSON が壊れている、型が違う、未知の effort、読めないプロンプトファイル）だとエージェントは起動せず、チャットのログにエラーを出す。例：`wavenerd-chat.json: "effort" must be one of low, medium, high, xhigh, max`。
+- 別のエージェント（Codex など）は、`claudeCommand` と同じ形の関数と出力の解釈を足す。
+
+### UI
+
+- Strudel のデッキ（A、B）ごとに、コードエディタとステータスバーの間にチャットのパネルがある。初期は閉じている。ステータスバーの GLSL / Strudel 切り替えの左にあるロボットのアイコンで開閉する。エージェントが動いている間はアイコンが脈打つ。GLSL のデッキにはボタンがない（`live/` は Strudel だけのため）。
+- パネルの上の境界線をドラッグすると分割を変えられる。チャットはステータスバーの上の高さの 15%〜85%。開閉と比率はデッキごとに localStorage に保存（`wavenerd-live-chat-a` / `-b`）。
+- Enter で送信（日本語変換中の Enter は確定）、Shift-Enter で改行、Escape でフォーカスを外す。
+- ログには発言、使ったツール（`Edit live/A.strudel.js` など）、失敗したツールの結果（許可されていない編集など）、実行のエラーが出る。フックが返すコンパイルエラーはログに直接は出ない。エージェントが受け取って直し、返答で伝える（未確認）。
+- 反映（Mod-R）は今まで通り人が行う。
+
+### 確認結果（2026-11-09、Chrome via playwright）
+
+- 送信すると Skill `strudel-live` を使い、`status.json` / `A.strudel.js` を読んで返答した。
+- 2 通目で会話が続き、A を Edit してキューされた（`fileState: cued`）。
+- 実行中に停止ボタンで「Stopped」になった。
+- 新しい会話にするとログと session id が消えた。
+- init の `apiKeySource` は `none`。
+- デッキごとの設計：両方のデッキを Strudel にして、デッキ A のチャットを開いた。境界線のドラッグで比率が変わった（保存された値は 0.62）。
+- A のチャットに「B を読んで、B のキックのゲインを変えて」と頼むと、B を読んでキーとテンポを答えたが、B の編集は断り、B のファイルは変わらなかった。
+- 別に、ヘッドレスで `--allowedTools "Edit(live/zz1.txt),Write(live/zz1.txt)"` を付けて実行すると、zz1 は書けて zz2 は拒否された。1 ファイルだけの制限は、プロンプトだけでなく権限で効いている。
+
+### 制限
+
+- ターミナルの Claude Code とは別の会話。両方から同じデッキを同時に書き換えない。
+- 1 通ごとに起動するので、返答まで数秒〜数十秒かかる。
+- ストリーミングはメッセージ単位（文字単位ではない）。
 
 ## 鳴らすときだけ出るエラー（2026-10-01）
 

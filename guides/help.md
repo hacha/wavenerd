@@ -16,7 +16,7 @@ Everything below is added by this fork. The GLSL decks, the mixer and the rest w
 - **Strudel decks**: each deck can run [Strudel](https://strudel.cc/) pattern code instead of a GLSL shader. See "Strudel decks".
 - **Live FX**: hold SHIFT + a pad, or hold a pad on the screen, to roll, shift octaves, rise or stab a Strudel deck. See "Live FX".
 - **Pioneer DDJ-FLX2 support**: the mixer is mapped when you plug it in, and its pads and jog turn the knobs of the decks. See "DDJ-FLX2".
-- **Live coding with Claude Code**: when run with the dev server, Claude Code can write the code of the Strudel decks while you play. See "Live coding with Claude Code".
+- **Live coding with Claude Code**: when run with the local dev server, Claude Code can write the code of the Strudel decks while you play, and you can chat with it from each deck. See "Live coding with Claude Code".
 - **License**: this fork is AGPL-3.0-or-later, since Strudel and superdough are. The code originally written for 0b5vr/wavenerd is also available under the MIT License. See the [README](https://github.com/hacha/wavenerd#license).
 
 ## How to compile / apply
@@ -180,9 +180,41 @@ Simply `texture(image_****, uv)` to use.
 
 ## Live coding with Claude Code
 
-When Wavenerd is run with the dev server (`pnpm dev`), Claude Code can write the code of the Strudel decks while you play. It does not work on the published site.
+When Wavenerd is run with the local dev server (`pnpm dev`) and opened on localhost, Claude Code can write the code of the Strudel decks while you play. It does not work on the published site.
 
 - Claude Code writes `live/A.strudel.js` / `live/B.strudel.js`. The code is put in the editor of the deck and cued. You apply it yourself (`⌘R` / `Ctrl+R`, or `⇧⌘R` / `Shift+Ctrl+R` to apply immediately). Code you cue by hand is written back to the file.
 - `live/status.json` tells the state of the app, `live/sounds.txt` lists the sound names, and `live/levels.json` has the loudness of each deck.
+
+### Chat with the agent from a deck
+
+**The chat works only when Wavenerd runs on the local dev server (`pnpm dev`) opened on localhost.** It does not exist on the published site, and it is disabled when the dev server is exposed with `--host`.
+
+Each Strudel deck has a chat panel with the agent. Click the robot button in the status bar of the deck, left of the `GLSL | Strudel` switch, to open or close it. It is closed at first, and the button pulses while the agent is working. GLSL decks have no button.
+
+- The panel sits between the code and the status bar. Drag its top border to change the split. Whether it is open and the split are remembered for each deck in the browser.
+- `Enter` sends, `Shift+Enter` is a new line (`Enter` while typing Japanese just confirms the text), and `Escape` leaves the box. While the agent works, the send button becomes a stop button. The "New conversation" button clears the log and starts over.
+- The chat of deck A edits only the code of deck A (`live/A.strudel.js`), and deck B likewise. It may read the other deck to match it. It cues the code, and you apply it yourself with the keys above.
+- It runs the Claude Code installed and logged in on the same machine (the `claude` command), with your Claude subscription, not an API key. It stops if Claude Code would use an API key, unless `allowApiKey` is set.
+- Each deck has its own conversation, separate from any Claude Code session you have open in a terminal. Do not have both write the same deck at once.
+
+To change the settings, copy `wavenerd-chat.example.json` to `wavenerd-chat.json` at the root of the repository. It is read again for every message, and every field is optional:
+
+| Field | Meaning |
+| --- | --- |
+| `model` | Model of Claude Code, e.g. `sonnet`, `opus` |
+| `effort` | `low`, `medium`, `high`, `xhigh` or `max` |
+| `systemPrompt` | Text added to the system prompt |
+| `systemPromptFiles` | Files (relative to the repository root) added after `systemPrompt` |
+| `command` | The command of Claude Code (default `claude`) |
+| `allowApiKey` | `true` lets the agent use an API key (default `false`) |
+
+```json
+{
+  "model": "sonnet",
+  "effort": "low",
+  "systemPrompt": "The performer is on stage. Keep replies to one or two sentences.",
+  "systemPromptFiles": []
+}
+```
 
 Details are in [doc/strudel-integration.md](https://github.com/hacha/wavenerd/blob/dev/doc/strudel-integration.md) (in Japanese).

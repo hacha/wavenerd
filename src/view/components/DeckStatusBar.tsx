@@ -4,6 +4,7 @@ import styles from './DeckStatusBar.module.css';
 import { useCallback, useMemo } from 'react';
 import IconApply from '~icons/mdi/skip-forward';
 import IconBuild from '~icons/mdi/hammer';
+import IconChat from '~icons/mdi/robot-outline';
 import IconCheck from '~icons/mdi/check-bold';
 import IconCircle from '~icons/mdi/circle-medium';
 import IconError from '~icons/mdi/close-octagon';
@@ -241,10 +242,21 @@ function ModeToggle({ mode, onToggleMode }: {
   );
 }
 
+function ChatToggle({ open, busy, onToggle }: { open: boolean; busy: boolean; onToggle: () => void }) {
+  return (
+    <IconChat
+      className={clsx(iconButtonCls, !open && 'opacity-50', busy && 'animate-pulse text-accent')}
+      onClick={onToggle}
+      data-stalker={`${open ? 'Hide' : 'Show'} the chat with the agent on this machine${busy ? '\nThe agent is working' : ''}`}
+    />
+  );
+}
+
 // == component ====================================================================================
 export function DeckStatusBar({
   mode,
   onToggleMode,
+  chat,
   onCompile,
   onApply,
   onApplyImmediately,
@@ -259,6 +271,10 @@ export function DeckStatusBar({
 }: {
   mode: DeckSourceMode;
   onToggleMode: () => void;
+
+  /** The chat with the coding agent. Strudel decks on the dev server only. */
+  chat?: { open: boolean; busy: boolean; onToggle: () => void };
+
   onCompile: () => void;
   onApply: () => void;
   onApplyImmediately: () => void;
@@ -296,6 +312,7 @@ export function DeckStatusBar({
       />
       {mode === 'strudel' && <FailedSounds />}
       {compileTimeEnabled && <CompileTime compileTimeAtom={compileTimeAtom} />}
+      {chat != null && <ChatToggle {...chat} />}
       <ModeToggle mode={mode} onToggleMode={onToggleMode} />
       <IconBuild
         className={iconButtonCls}
